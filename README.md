@@ -1,4 +1,4 @@
-# Demography project
+# Wind River zooplankton
 
 ## Table of Contents
 - [Author](#author)
@@ -14,7 +14,6 @@
 Name| Contact
 :-----:|:-----
 Alex Lewanski|[allewanski@gmail.com](mailto:allewanski@gmail.com)
-Spencer Cruz
 
 ## Overview
 The `wr_zooplankton_trait_project` repo is associated with the following manuscript: . Further details will be added upon acceptance of the manscript.

@@ -510,6 +510,35 @@ fd_ses_df_lake %>%
              size = 2,
              position = position_jitterdodge(dodge.width = 0.75, jitter.width = 0.2))
 
+
+
+
+
+
+
+
+
+#THIS CAUSES MY R SESSION TO CRASH
+# library(betapart)
+# 
+# count_dat_processed_beta <- count_dat_processed %>% 
+#   column_to_rownames(var = 'taxa') %>% 
+#   t() %>% 
+#   as.data.frame() %>% 
+#   slice_sample(n = 2)
+# 
+# count_dat_processed_beta[count_dat_processed_beta != 0] <- 1
+# count_dat_processed_beta_final <- count_dat_processed_beta[,match(rownames(zoo_msd_calc$supplementary_info$PCoA_list$cailliez[,1:2]), colnames(count_dat_processed_beta))]
+# 
+# 
+# 
+# functional.beta.pair(x = count_dat_processed_beta_final,
+#                      traits = zoo_msd_calc$supplementary_info$PCoA_list$cailliez[,1:2],
+#                      index.family = 'sorensen')
+
+
+
+
 ###############################
 ### JASM POSTER MAIN RESULT ###
 ###############################

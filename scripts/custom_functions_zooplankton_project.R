@@ -2321,3 +2321,302 @@ var_decomp <- function(abundance_df, trait_df) {
     )
   )
 }
+
+
+
+
+
+
+
+FTD<-function(tdmat,weights=NULL,q=1){
+  #https://github.com/ShanKothari/DecomposingFD
+  
+  ## contingency for one-species communities
+  if(length(tdmat)==1 && tdmat==0){
+    tdmat<-as.matrix(tdmat)
+  }
+  
+  ## is the input a (symmetric) matrix or dist? if not...
+  # if(!(class(tdmat) %in% c("matrix","dist"))){
+  #   stop("distances must be class dist or class matrix")
+  # } else if(class(tdmat)=="matrix" && !isSymmetric(unname(tdmat))){
+  #   warning("trait matrix not symmetric")
+  # } else if(class(tdmat)=="dist"){
+  #   tdmat<-as.matrix(tdmat)
+  # }
+  
+  ## is the input a (symmetric) matrix or dist? if not...
+  if(!any(class(tdmat) %in% c("matrix","dist"))){
+    stop("distances must be class dist or class matrix")
+  } else if("matrix" %in% class(tdmat) && !isSymmetric(unname(tdmat))){
+    warning("trait matrix not symmetric")
+  } else if("dist" %in% class(tdmat)){
+    tdmat<-as.matrix(tdmat)
+  }
+  
+  if(!isTRUE(all.equal(sum(diag(tdmat)),0))){
+    warning("non-zero diagonal; species appear to have non-zero trait distance from themselves")
+  }
+  
+  if(max(tdmat)>1 || min(tdmat)<0){
+    tdmat<-(tdmat-min(tdmat))/(max(tdmat)-min(tdmat))
+    warning("trait distances must be between 0 and 1; rescaling")
+  }
+  
+  ## if no weights are provided, abundances are assumed equal
+  if(is.null(weights)){
+    nsp<-nrow(tdmat)
+    weights<-rep(1/nsp,nsp)
+  } else {
+    nsp<-sum(weights>0)
+  }
+  
+  if(!isTRUE(all.equal(sum(weights),1))){
+    weights<-weights/sum(weights)
+    warning("input proportional abundances do not sum to 1; summation to 1 forced")
+  }
+  
+  tdmat.abund<-diag(weights) %*% tdmat %*% diag(weights)
+  ## Here, because sum(weights)=1, the sum is here already adjusted by dividing by the 
+  ## square of the number of species (if weights=NULL)
+  ## or by multiplying by proportional abundances
+  M<-sum(tdmat.abund)
+  ## M equals Rao's Q in abundance-weighted calculations
+  M.prime<-ifelse(nsp==1,0,M*nsp/(nsp-1))
+  fij<-tdmat.abund/M
+  
+  ## calculating qHt
+  ## fork -- if q=1, 1/(1-q) is undefined, so we use an analogue
+  ## of the formula for Shannon-Weiner diversity
+  ## if q!=1, we can calculate explicitly
+  ## by definition, qHt=0 when all trait distances are zero
+  if(isTRUE(all.equal(M,0))){
+    qHt<-0
+  } else if(q==1){
+    fijlog<-fij*log(fij)
+    fijlog[is.na(fijlog)]<-0
+    qHt<-exp(-1*sum(fijlog))
+  } else if(q==0){
+    qHt<-sum(fij>0)
+  } else {
+    qHt<-sum(fij^q)^(1/(1-q))
+  }
+  
+  ## getting qDT, qDTM, and qEt from qHt
+  qDT<-(1+sqrt(1+4*qHt))/2
+  qDTM<-1+qDT*M
+  qEt<-qDT/nsp
+  
+  list(nsp=nsp,q=q,M=M,M.prime=M.prime,qHt=qHt,qEt=qEt,qDT=qDT,qDTM=qDTM)
+}
+
+## wrapper for the above function across multiple communities
+## requires distance matrix w/ all species, scaled to 0-1
+## community data matrix (communities x species)
+## with species in same order as distance matrix
+## if abund=T, values in community data matrix are treated as abundances
+## otherwise, all are converted to presence-absence
+## if match.names=T, the code will match species names across the
+## trait distance matrix and comm data matrix and rearrange the latter
+
+FTD.comm<-function(tdmat,spmat,q=1,abund=F,match.names=F){
+  
+  #https://github.com/ShanKothari/DecomposingFD
+  
+  ## is the input a (symmetric) matrix or dist? if not...
+  if(!(class(tdmat) %in% c("matrix","dist"))){
+    stop("distances must be class dist or class matrix")
+  } else if(class(tdmat)=="matrix" && !isSymmetric(unname(tdmat))){
+    warning("trait matrix not symmetric")
+  } else if(class(tdmat)=="dist"){
+    tdmat<-as.matrix(tdmat)
+  }
+  
+  if(!isTRUE(all.equal(sum(diag(tdmat)),0))){
+    warning("non-zero diagonal; species appear to have non-zero trait distance from themselves")
+  }
+  
+  if(max(tdmat)>1 || min(tdmat)<0){
+    tdmat<-(tdmat-min(tdmat))/(max(tdmat)-min(tdmat))
+    warning("trait distances must be between 0 and 1; rescaling")
+  }
+  
+  if(abund==F){
+    spmat[spmat>0]<- 1
+    spmat<-spmat/rowSums(spmat)
+  }
+  
+  n.comm<-nrow(spmat)
+  if(match.names==T){
+    sp.arr<-match(rownames(as.matrix(tdmat)),colnames(spmat))
+    spmat<-spmat[,sp.arr]
+  }
+  
+  ## apply FTD to each community in turn
+  out<-apply(spmat,1,function(x) unlist(FTD(tdmat=tdmat,weights=x,q=q)))
+  df.out<-data.frame(t(out))
+  rownames(df.out)<-rownames(spmat)
+  ## warning for zero-species communities
+  if(sum(df.out$nsp==0)>0){
+    warning("at least one community has no species")
+  }
+  
+  nsp<-sum(colSums(spmat>0))
+  ## this is Sw -- always an arithmetic mean, according to Evsey Kosman
+  u.nsp<-mean(df.out$nsp)
+  ## calculate mean richness, dispersion, evenness, FTD
+  u.M<-sum(df.out$nsp*df.out$M)/sum(df.out$nsp)
+  
+  if(q==1){
+    ## geometric mean -- limit of generalized mean as q->1
+    u.qDT<-prod(df.out$qDT)^(1/n.comm)
+  } else {
+    ## generalized mean with m=1-q
+    u.qDT<-(sum(df.out$qDT^(1-q))/n.comm)^(1/(1-q))
+  }
+  u.M.prime<-u.M*u.nsp/(u.nsp-1)
+  
+  ## calculate mean FTD and evenness
+  u.qDTM<-1+u.qDT*u.M
+  u.qEt<-u.qDT/u.nsp
+  
+  ## list more things
+  list(com.FTD=df.out %>% rownames_to_column(var = 'community'),
+       nsp=nsp,
+       u.nsp=u.nsp,
+       u.M=u.M,
+       u.M.prime=u.M.prime,
+       u.qEt=u.qEt,
+       u.qDT=u.qDT,
+       u.qDTM=u.qDTM)
+}
+
+comm.disp<-function(tdmat,com1,com2){
+  #https://github.com/ShanKothari/DecomposingFD
+  
+  ## is the input a matrix or dist? if not...
+  if(!(class(tdmat) %in% c("matrix","dist"))){
+    stop("distances must be class dist or class matrix")
+  } else if(class(tdmat)=="matrix" && !isSymmetric(unname(tdmat))){
+    warning("trait matrix not symmetric")
+  } else if(class(tdmat)=="dist"){
+    tdmat<-as.matrix(tdmat)
+  }
+  
+  if(isTRUE(all.equal(sum(com1),1))==F || isTRUE(all.equal(sum(com2),1))==F){
+    com1<-com1/sum(com1)
+    com2<-com2/sum(com2)
+    warning("input proportional abundances do not sum to 1; summation to 1 forced")
+  }
+  
+  ## mean distance between species in community 1 and 2
+  mAB<-sum(diag(com1) %*% tdmat %*% diag(com2))
+  ## correction so that dispersion=0 if communities have the same species
+  mAA<-sum(diag(com1) %*% tdmat %*% diag(com1))
+  mBB<-sum(diag(com2) %*% tdmat %*% diag(com2))
+  dmAB<-mAB-(mAA+mBB)/2
+  return(dmAB)
+}
+
+
+comm.disp.mat<-function(tdmat,spmat,abund=F,sp.weighted=FALSE){
+  #https://github.com/ShanKothari/DecomposingFD
+  n.comm<-nrow(spmat)
+  
+  if(abund==F){
+    spmat[spmat>0]<- 1
+    spmat<-spmat/rowSums(spmat)
+  }
+  
+  ## if any row doesn't sum to 1, coerce summation
+  if(FALSE %in% sapply(rowSums(spmat),function(x) isTRUE(all.equal(x,1)))){
+    spmat<-spmat/rowSums(spmat)
+    warning("proportional abundances don't always sum to 1; summation to 1 forced")
+  }
+  
+  disp.mat<-outer(1:n.comm,1:n.comm,FUN=Vectorize(function(i,j) comm.disp(tdmat,com1=spmat[i,],com2=spmat[j,])))
+  if(sp.weighted==T){
+    nsp.comm<-rowSums(spmat>0)
+    disp.mat.weight<-diag(nsp.comm) %*% disp.mat %*% diag(nsp.comm)
+    return(disp.mat.weight)
+  } else {
+    return(disp.mat)
+  }
+}
+
+M.gamma.pairwise<-function(tdmat,spmat,abund=F){
+  #https://github.com/ShanKothari/DecomposingFD
+  
+  if(abund==F){
+    spmat[spmat>0]<- 1
+    spmat<-spmat/rowSums(spmat)
+  }
+  
+  ## if any row doesn't sum to 1, coerce summation
+  if(FALSE %in% sapply(rowSums(spmat),function(x) isTRUE(all.equal(x,1)))){
+    spmat<-spmat/rowSums(spmat)
+    warning("proportional abundances don't always sum to 1; summation to 1 forced")
+  }
+  
+  M.gamma<-function(tdmat,com1,com2){
+    nsp1<-sum(com1>0)
+    nsp2<-sum(com2>0)
+    c.ind<-c(which(com1>0),which(com2>0))
+    ## is this the correct abundance-weighted M.gamma?
+    ## or should proportional abundances in less speciose communities count for more?
+    ## alternative:
+    ## c.abund<-unlist(c(com1[which(com1>0)],com2[which(com2>0)]))/2
+    c.abund<-unlist(c(com1[which(com1>0)]*nsp1,com2[which(com2>0)]*nsp2))/(nsp1+nsp2)
+    M.c<-sum(c.abund %*% tdmat[c.ind,c.ind] %*% c.abund)
+    return(M.c)
+  }
+  
+  n.comm<-nrow(spmat)
+  M.gamma.mat<-outer(1:n.comm,1:n.comm,FUN=Vectorize(function(i,j) M.gamma(tdmat,spmat[i,],spmat[j,])))
+  return(M.gamma.mat)
+}
+
+M.beta.pairwise<-function(tdmat,spmat,abund=F,norm=F){
+  nsp.comm<-rowSums(spmat>0)
+  n.comm<-nrow(spmat)
+  nsp.pair<-outer(1:n.comm,1:n.comm,function(i,j) nsp.comm[i]+nsp.comm[j])
+  disp.mat.weight<-comm.disp.mat(tdmat,spmat,abund=abund,sp.weighted=T)
+  ## factor of 2 to include distance from A to B and B to A
+  M.beta.mat<-2*disp.mat.weight/nsp.pair^2
+  if(norm==T){
+    M.beta.norm<-M.beta.mat/M.gamma.pairwise(tdmat,abund=abund,spmat)
+    M.beta.norm[is.na(M.beta.norm)]<-0
+    return(M.beta.norm)
+  } else {
+    return(M.beta.mat)
+  }
+}
+
+FTD.beta<-function(tdmat,spmat,abund=F,q=1){
+  #https://github.com/ShanKothari/DecomposingFD
+  nsp<-sum(colSums(spmat)>0)
+  St<-sum(spmat>0)
+  n.comm<-nrow(spmat)
+  
+  disp.mat.weight<-comm.disp.mat(tdmat,spmat,abund=abund,sp.weighted=T)
+  M.beta<-sum(disp.mat.weight)/St^2
+  M.beta.prime<-M.beta*n.comm/(n.comm-1)
+  
+  fAB<-disp.mat.weight/sum(disp.mat.weight)
+  if(isTRUE(all.equal(sum(disp.mat.weight),0))){
+    Ht.beta<-0
+  } else if(q==1){
+    fABlog<-fAB*log(fAB)
+    fABlog[is.na(fABlog)]<-0
+    Ht.beta<-exp(-1*sum(fABlog))
+  } else if(q==0){
+    Ht.beta<-sum(fAB>0)
+  } else {
+    Ht.beta<-sum(fAB^q)^(1/(1-q))
+  }
+  qDT.beta<-(1+sqrt(1+4*Ht.beta))/2
+  qDTM.beta<-1+qDT.beta*M.beta
+  Et.beta<-qDT.beta/n.comm
+  
+  list(nsp=nsp,St=St,n.comm=n.comm,q=q,M.beta=M.beta,M.beta.prime=M.beta.prime,Ht.beta=Ht.beta,qDT.beta=qDT.beta,qDTM.beta=qDTM.beta,disp.mat.weight=disp.mat.weight)
+}

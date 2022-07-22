@@ -19,6 +19,9 @@ library(readxl)
 #egg_len_dat <- as.data.frame(read_excel(here('data', 'Zooplankton_eggs_and_length_2_25_2022.xlsx'), sheet = 'Data'))
 egg_len_dat <- as.data.frame(read_excel(here('data', 'Zooplankton_eggs_and_length_3_29_2022.xlsx'), sheet = 'Data formatted for R'))
 
+rotifer_traits <- as.data.frame(read_excel(here('data', 'Rotifer_Measurements_and_Traits.xlsx'), na = "NA"))
+trait_info_init <- as.data.frame(read_excel(here('data', 'Zooplankton_eggs_and_length_5_9_2022.xlsx'), sheet = 'Inter Traits'))
+
 #COUNT DATA QUESTIONS
 # #keratella, keratella 2 spine, keratella 1 spine in 2018
 # #should d. middenorfiana/pulex and d. middenorfiana be treated separately or be lumped together?
@@ -38,6 +41,7 @@ egg_len_dat_processed <- egg_len_dat %>%
          "egg_count" = "Number of eggs") %>% 
   rename_with(.fn = tolower, .cols = everything()) %>% 
   mutate(contains_fish = ifelse(fish == 1, 'yes', 'no'))
+
 
 ### 3/29/2022: THIS IS NOT LONGER NECESSARY WITH THE DATA REFORMATTING
 ### Length at reproduction and egg count data ###
@@ -113,6 +117,66 @@ for (YEAR in c(2018, 2019)) {
 }
 
 
+
+
+
+trait_info <- trait_info_init %>% 
+  select(Species, `Reproductive Mode`, `Body Shape`, `Feeding Type`) %>% 
+  rename(species = Species,
+         reproductive_mode = `Reproductive Mode`,
+         body_shape = `Body Shape`,
+         feeding_type = `Feeding Type`)
+
+length_dat_processed <- zoop_length_total_list0 %>%
+  bind_rows() %>% 
+  group_by(taxa) %>% 
+  summarise(mean_length = mean(length_mm, na.rm = TRUE), .groups = 'drop')
+
+trait_info <- trait_info %>% 
+  na.omit() %>% 
+  mutate(taxa = case_when(species == 'B_longirostris' ~ 'b. longirostris',
+                          species == 'D_mendotae' ~ 'd. mendatoe',
+                          species == 'D_pulex' ~ 'd. middenorfiana/pulex',
+                          species == 'H_shoshone' ~ "h. shoshone",
+                          species == 'L_minutus' ~ 'l. minutus',
+                          species == 'Chydorus' ~ 'chydorus',
+                          species == 'H. gibberum' ~ 'h. gibberum',
+                          species == 'P. pediculous' ~ 'p. pediculus')) %>%
+  select(!species) %>% 
+  left_join(., length_dat_processed, by = 'taxa') %>% 
+  rename(species = taxa)
+  #column_to_rownames(var = "taxa")
+
+
+rotifer_info <- rotifer_traits %>% 
+  select(Species, `Reproductive Mode`, `Body Shape`, `Trophic Group`, `Feeding Type`, `Size(mm)`) %>% 
+  rename(species = Species,
+         reproductive_mode = `Reproductive Mode`,
+         body_shape = `Body Shape`,
+         feeding_type = `Feeding Type`,
+         length = `Size(mm)`) %>% 
+  group_by(species) %>% 
+  summarize(reproductive_mode = first(reproductive_mode),
+            body_shape = first(body_shape),
+            feeding_type = first(feeding_type),
+            mean_length = mean(length)) %>% 
+  mutate(species = tolower(species)) %>% 
+  mutate(species = case_when(species == "colonial_conochilidae" ~ "colonial conochilidae",
+                             species == "fillinia" ~ "filinia",
+                             species == "kellicotia" ~ "kellicotta",
+                             species == 'keratella_2spine' ~ "keratella 2 spine",
+                             species == "keratella_1spine" ~ "keratella 1 spine",
+                             species == "synchaeta" ~ "syncheata",
+                             species == "asplancha" ~ "asplancha",
+                             species == "notholca" ~ "notholca",
+                             species == "polyarthra" ~ "polyarthra",
+                             species == "euchlanis" ~ "euchlanis"))
+
+
+all_taxa_trait_info <- rbind(trait_info, rotifer_info)
+
+all_taxa_trait_info$species[!(all_taxa_trait_info$species %in% unique(c(count_dat_processed_list$length_dat_2018$taxa, count_dat_processed_list$length_dat_2019$taxa) ))]
+
 # count_dat_processed_list_name_update <- lapply(count_dat_processed_list, function(x) {
 #   x %>% 
 #     mutate(Lake = recode(Lake, "north_blue" = "n of blue"))
@@ -187,5 +251,9 @@ for (YEAR in c(2018, 2019)) {
 #   mutate(total = ifelse(total == 0, ifelse(a != 0 | b != 0, sum(a, b, na.rm = TRUE), sum(c, na.rm = TRUE)), total)) %>% 
 #   ungroup()
 
+saveRDS(all_taxa_trait_info, here('data', 'processed_data', 'all_taxa_trait_info_processed.rds') )
 saveRDS(count_dat_processed_list, here('data', 'processed_data', 'count_dat_processed_list.rds') )
 saveRDS(zoop_length_total_list0, here('data', 'processed_data', 'zoop_length_total_list0.rds') )
+
+
+

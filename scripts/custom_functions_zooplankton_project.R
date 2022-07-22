@@ -2258,6 +2258,44 @@ listname2column <- function(list, column_name = 'element_name') {
 }
 
 
+#convert pairwise distances in dataframe into a distance matrix (class dist)
+df2dist_update <- function(df) {
+  
+  #all the elements in input df
+  labels_vec <- unique(c(df[,1], df[,2]))
+  
+  #create square matrix with dimensions based on labels_vec length
+  dist_mat <- matrix(0, length(labels_vec), length(labels_vec))
+  dimnames(dist_mat) <- list(labels_vec, labels_vec)
+  
+  #positions of each 
+  df$v1_pos <- match(df[,1], rownames(dist_mat)) #position of 
+  df$v2_pos <- match(df[,2], rownames(dist_mat))
+  
+  #add all the pairwise differences 
+  for (i in seq_len(nrow(df))) {
+    dist_mat[df[i,'v1_pos'], df[i,'v2_pos']] <- df[i,3]
+    dist_mat[df[i,'v2_pos'], df[i,'v1_pos']] <- df[i,3]
+  }
+  
+  #return matrix converted to a distance matrix
+  return(as.dist(dist_mat) )
+}
+
+
+reorder_dist <- function(dist_mat, new_order) {
+  mat_convert <- as.matrix(dist_mat)
+  
+  return(
+    as.dist(mat_convert[match(new_order, rownames(mat_convert)),
+                        match(new_order, colnames(mat_convert))] )
+  )
+  
+}
+
+
+
+
 
 #################################
 ### DECOMPOSITION OF VARIANCE ###

@@ -2215,9 +2215,133 @@ calc_fd_contr_inputdist <- function(data,
 
 
 
+##########################################################################
+### MODEL DIAGNOSTICS (DISPERSION, NORMALITY, SPATIAL AUTOCOR, ETC...) ###
+##########################################################################
+
+moran_wrapper_alt <- function(data, mod, long_col, lat_col) {
+  #https://stats.oarc.ucla.edu/r/faq/how-can-i-calculate-morans-i-in-r/
+  
+  loc_dists <- as.matrix(dist(cbind(data[, long_col], data[, lat_col])))
+  loc_dists_inv <- 1/loc_dists
+  diag(loc_dists_inv) <- 0
+  
+  return(Moran.I(resid(mod), loc_dists_inv))
+}
+
+
+eval_spatial_autocor <- function(data, mod, long_col, lat_col, method = c('moran', 'variogram')) {
+  
+  spatial_autocor_list <- list()
+  
+  if ('moran' %in% method) {
+    spatial_autocor_list[['moran']] <- moran_wrapper_alt(data = data, 
+                                                         mod = mod, 
+                                                         long_col = long_col, 
+                                                         lat_col = lat_col)
+    
+  }
+  
+  if ('variogram' %in% method) {
+    spatial_autocor_list[['variogram']] <- variogram(resid(mod) ~ 1, 
+                                                     loc = as.formula(paste0('~', long_col, '+', lat_col) ), 
+                                                     data = data)
+  }
+  
+  return(spatial_autocor_list)
+  
+}
+
+moran_wrapper_updated <- function(data, mod, long_col, lat_col) {
+  #https://github.com/florianhartig/DHARMa/blob/master/DHARMa/inst/examples/testSpatialAutocorrelationHelp.R
+  
+  #create coordinate column and reduce data down to a set of unique locations
+  data$coord <- paste0(data[, long_col], ", ", data[, lat_col])
+  #data_remove_dups <- data[!duplicated(data$coord),]
+  
+  #simulate residuals from model and aggregate residuals by location
+  dharma_sim <- simulateResiduals(mod)
+  dharma_sim_recalc <- recalculateResiduals(dharma_sim, aggregateBy = sum, group = data$coord)
+  
+  #calculate Moran's I based on the aggregated residuals
+  return(testSpatialAutocorrelation(dharma_sim_recalc, 
+                                    x = aggregate(data[, long_col], list(data$coord), mean)$x, 
+                                    y = aggregate(data[, lat_col], list(data$coord), mean)$x,
+                                    plot = FALSE) )
+}
+
+variogram_calc <- function(data, mod, long_col, lat_col) {
+  
+  return(
+    variogram(residuals(simulateResiduals(mod)) ~ 1, 
+              loc = as.formula(paste0('~', long_col, '+', lat_col)), 
+              data = data)
+  )
+  
+}
+
+glm_diagnostics <- function(mod_list,
+                            file_name,
+                            panel_width = 6,
+                            plot_height = 6,
+                            show_progress = TRUE) {
+  
+  pdf(file = paste0(file_name, '.pdf'), 
+      width = panel_width, height = plot_height)
+  
+  for (FD in names(mod_list) ) {
+    for (MOD in names(mod_list[[FD]]) ) {
+      par(mfrow = c(2, 2), oma = c(1, 1, 2.25, 1))
+      plot(mod_list[[FD]][[MOD]])
+      # mtext(paste0(FD, ' ~ ',  MOD), 
+      #        outer = TRUE, side = 3, cex = 1, font = 2)
+      
+      if (isTRUE(show_progress)) message(FD, ' ~ ',  MOD)
+    }
+  }
+  dev.off()
+}
+
+mixed_mod_diagnostics <- function(mod_list,
+                                  file_name,
+                                  diagnostics = c('QQ', 'resid_vs_predict', 'dispersion'),
+                                  panel_width = 6,
+                                  plot_height = 6,
+                                  show_progress = TRUE) {
+  
+  diagnostics <- match.arg(diagnostics, several.ok = TRUE)
+  col_dim <- length(diagnostics)
+  
+  pdf(file = paste0(file_name, '.pdf'), 
+      width = panel_width, height = plot_height)
+  
+  for (FD in names(mod_list) ) {
+    
+    for (MOD in names(mod_list[[FD]]) ) {
+      
+      sim_resid <- simulateResiduals(mod_list[[FD]][[MOD]])
+      
+      par(mfrow = c(1, col_dim), oma = c(1, 1, 2.25, 1))
+      if ('QQ' %in% diagnostics) plotQQunif(sim_resid)
+      if ('resid_vs_predict' %in% diagnostics) plotResiduals(sim_resid, rank = TRUE, quantreg = FALSE, cex = 0.5)
+      if ('dispersion' %in% diagnostics) testDispersion(sim_resid)
+      mtext(paste0(FD, ' ~ ',  MOD), 
+            outer = TRUE, side = 3, cex = 1, font = 2)
+      
+      if (isTRUE(show_progress)) message(FD, ' ~ ',  MOD)
+    }
+  }
+  
+  dev.off()
+}
+
+
+
 #####################
 ### MISCELLANEOUS ###
 #####################
+
+standardize_val <- function(x) (x - mean(x))/sd(x)
 
 dist_wrapper <- function(df, method = c('dist', 'gowdis', 'gawdis'), arg_list = NULL) {
   ### check inputs ###
@@ -2658,3 +2782,4 @@ FTD.beta<-function(tdmat,spmat,abund=F,q=1){
   
   list(nsp=nsp,St=St,n.comm=n.comm,q=q,M.beta=M.beta,M.beta.prime=M.beta.prime,Ht.beta=Ht.beta,qDT.beta=qDT.beta,qDTM.beta=qDTM.beta,disp.mat.weight=disp.mat.weight)
 }
+

@@ -71,8 +71,7 @@ all_taxa_traits_processed_init <- all_taxa_traits %>%
 count_dat_processed_init <- count_dat_processed_list %>%
   bind_rows() %>% 
   filter(Lake != "Lost Lake") %>% #remove lost lake
-  mutate(Lake = recode(Lake, #N of Blue in 2018; North Blue in 2019
-                       "N of Blue" = "North Blue")) %>% 
+  mutate(Lake = dplyr::recode(Lake, "N of Blue" = "North Blue")) %>%
   group_by(Lake) %>% 
   filter(year == max(year)) %>% #keep only the most recent survey
   ungroup() %>% 
@@ -80,7 +79,7 @@ count_dat_processed_init <- count_dat_processed_list %>%
   summarize(total_abund = sum(total), .groups = 'drop') %>% 
   filter(taxa %in% unique(rownames(all_taxa_traits_processed_init) )) %>%
   mutate(lake = gsub(" ", "_", str_trim(tolower(Lake)))) %>%
-  mutate(lake = recode(lake, 
+  mutate(lake = dplyr::recode(lake, 
                        'annika_lake' = 'annika',
                        "bear_west" = "west_bear",
                        "east_no_name" = "east_noname",
@@ -262,6 +261,11 @@ fd_ses_df <- rand_calcs_list %>%
 
 #n of blue switched to north blue but north blue was already in the dataset
 
+
+write.csv(fd_ses_df, file = here('results', 'alpha_ses_fd.csv'), row.names = FALSE)
+
+
+
 fd_ses_df_lake <- left_join(fd_ses_df, processed_lake_info, by = 'lake')  %>%
   #filter(lake != 'lost_lake') %>% 
   #select(!community) %>% 
@@ -319,7 +323,8 @@ alpha_ftd <- FTD.comm(tdmat = zoo_dist,
                         column_to_rownames(var = 'taxa') %>% 
                         t(), 
                      q = 1, abund = TRUE, 
-                     match.names = TRUE)$com.FTD #%>%
+                     match.names = TRUE)$com.FTD %>% 
+  rename(lake = community) #%>%
   # mutate(lake = gsub(" ", "_", str_trim(tolower(community)))) %>%
   # mutate(lake = recode(lake, 
   #                      'annika_lake' = 'annika',
@@ -338,6 +343,9 @@ alpha_ftd <- FTD.comm(tdmat = zoo_dist,
   #                      "no_name_west" = "west_noname",
   #                      "upper_indian_basin" = "upper_indian",
   #                      "west_of_mt_lester" = "west_mtlester"))
+
+write.csv(alpha_ftd, file = here('results', 'alpha_scheiner_metrics.csv'), row.names = FALSE)
+
 
 # prac_ftd_processed <- prac_ftd %>%
 #   mutate(lake = gsub(" ", "_", str_trim(tolower(community)))) %>%

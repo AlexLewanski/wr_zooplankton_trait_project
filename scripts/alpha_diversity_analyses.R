@@ -44,7 +44,7 @@ library(performance) #used for vif calc (alternative is car package but vif func
 library(gstat) #semivariogram
 library(ape) #variogram
 library(DHARMa) #diangostics for mixed models
-library(AER) #dispersion test for poisson glm
+#library(AER) #dispersion test for poisson glm
 
 
 ### custom functions
@@ -54,15 +54,16 @@ source(here("scripts", "custom_functions_zooplankton_project.R"))
 ### loading data (and initial processing) ###
 lindsey_master_data <- as.data.frame(read_excel(here('data', 'WR_data_ALL_Boyle.xlsx')))
 fish_info <- lindsey_master_data #%>% 
- # select(lake, fish)
+  #select(lake, fish)
 
 processed_lake_info <- fish_info[!duplicated(fish_info$lake),] %>%
-  mutate(long = abs(long)*-1,
-         lake = recode(lake,
-                       'lake37' = "lake_37",
-                       'blackjoe' = "black_joe",
-                       'upper_blackjoe' = "upper_black_joe",
-                       "below_tb" = "lake_below_tb"))
+  #mutate(long = abs(long)*-1)
+   mutate(long = abs(long)*-1,
+          lake = dplyr::recode(lake,
+                        'lake37' = "lake_37",
+                        'blackjoe' = "black_joe",
+                        'upper_blackjoe' = "upper_black_joe",
+                        "below_tb" = "lake_below_tb"))
 
 alpha_ses_fd <- read.csv(file = here('results', 'alpha_ses_fd.csv'))
 alpha_scheiner_fd <- read.csv(file = here('results', 'alpha_scheiner_metrics.csv'))
@@ -401,12 +402,44 @@ glm_moran_combined_df <- lapply(setNames(nm = names(glm_sp_autocor_list$moran)),
 ### MODEL FITTING 2: (g)lmms with trip as random effect  ###
 ############################################################
 
-### STEP 1. FIT MODELS ####
+predictor_vec <- setNames(c('fric_ses', 'fdis_ses', 'fdiv_ses', 'feve_ses', 'M.prime', 'qEt', 'nsp', 'qDTM'), 
+                          nm = c('FRic', 'FDis', 'FDiv', 'FEve', 'M.prime', 'qEt', 'nsp', 'qDTM'))
 
+
+### STEP 1. TEST IF POISSON DISTRIBUTION WORKS FOR THE SPECIES RICHNESS MODELS ####
+
+nsp_fd_mods_mixed_poisson <- lapply(c(nsp = 'nsp'), function(outcome, data) {
+
+  fd_global_mod <- glmmTMB(as.formula(paste0(outcome, ' ~ temp_std + area_std + time_convert_std + fish + (1|trip)')),
+                           data = data, family = 'poisson', na.action = "na.fail")
+  
+  mod_dredge <- dredge(global.model = fd_global_mod, 
+                       beta = c("none"), 
+                       evaluate = TRUE,
+                       rank = "AICc")
+  
+  mod_extract <- get.models(mod_dredge, subset = TRUE) #subset = delta <= 3
+  
+  return(list(global_mod = fd_global_mod,
+              dredge_output = mod_dredge,
+              top_mods = mod_extract) 
+  )
+  
+}, data = fd_ses_df_lake_wider)
+
+#is there evidence of over/underdispersion based on the poisson glmm of species richness?
+#answer: YES, there is evidence of underdispersion in all models
+#let's switch to conway-maxwell-poisson distribution
+test_disp_list_poisson <- lapply(nsp_fd_mods_mixed_poisson$nsp$top_mods, function(x) {
+  testDispersion(simulateResiduals(x))
+})
+
+
+### STEP 2. FIT MODELS ####
 alpha_fd_mods_mixed <- lapply(predictor_vec, function(outcome, data) {
   message(outcome)
   
-  family <- switch(outcome, nsp = {'poisson'}, 'gaussian')
+  family <- switch(outcome, nsp = {'compois'}, 'gaussian')
   
   #fd_global_mod <- glmer(as.formula(paste0(outcome, ' ~ temp + area + time_convert + fish + (1|trip)')),
   #                     data = fd_ses_df_lake_wider, family = family, na.action = "na.fail")
@@ -439,6 +472,187 @@ for (FD in names(alpha_fd_mods_mixed)) {
 }
 
 selection_table_list_mixed <- lapply(mod_rename_list_mixed, function(x) aictab(cand.set = x) )
+
+
+#does the conway-maxwell-poisson distribution deal with the underdispersion present in the poisson models?
+test_disp_list_compois <- lapply(alpha_fd_mods_mixed$nsp$top_mods, function(x) {
+  testDispersion(simulateResiduals(x))
+})
+
+
+
+##########################################
+### GLMMS --- ONLY FISH AS A PREDICTOR ###
+##########################################
+
+predictor_vec <- setNames(c('fric_ses', 'fdis_ses', 'fdiv_ses', 'feve_ses', 'M.prime', 'qEt', 'nsp', 'qDTM'), 
+                          nm = c('FRic', 'FDis', 'FDiv', 'FEve', 'M.prime', 'qEt', 'nsp', 'qDTM'))
+
+### STEP 1. FIT MODELS ####
+
+alpha_fd_mods_mixed_fish <- lapply(predictor_vec, function(outcome, data) {
+  message(outcome)
+  
+  #family <- switch(outcome, nsp = {'poisson'}, 'gaussian')
+  family <- switch(outcome, nsp = {'compois'}, 'gaussian')
+  
+  #fd_global_mod <- glmer(as.formula(paste0(outcome, ' ~ temp + area + time_convert + fish + (1|trip)')),
+  #                     data = fd_ses_df_lake_wider, family = family, na.action = "na.fail")
+  
+  #fd_fish_mod <- glmmTMB(as.formula(paste0(outcome, ' ~ fish + (1|trip)')),
+  #                         data = data, family = family, na.action = "na.fail")
+  fd_fish_mod <- glmmTMB(as.formula(paste0(outcome, ' ~ fish + (1|trip)')),
+                         data = data, family = family, na.action = "na.fail")
+  
+  return(fd_fish_mod)
+  
+}, data = fd_ses_df_lake_wider)
+
+
+### VISUALIZING RESULTS ###
+#NS: P > 0.10,
+#.: P < 0.10,
+#*: P < 0.05,
+#**: P < 0.01,
+#***: P < 0.001,
+
+fish_mod_summary <- lapply(setNames(nm = names(alpha_fd_mods_mixed_fish)), function(x, mod_list) {
+
+  return(
+    data.frame(estimate = summary(mod_list[[x]])$coefficients$cond['fish1', 'Estimate'],
+               p = summary(mod_list[[x]])$coefficients$cond['fish1', 'Pr(>|z|)']) %>%
+      mutate(estimate_sign = if_else(estimate > 0, '+', '-'),
+             p_symbol = case_when(p > 0.10 ~ 'ns',
+                                  p <= 0.10 & p > 0.05 ~ '\U2022', #interpunct instead of period (.)
+                                  p <= 0.05 & p > 0.01 ~ '*',
+                                  p <= 0.01 & p > 0.001 ~ '**',
+                                  p <= 0.001 ~ '**'),
+             #figure_text = paste0(p_symbol, ' (', estimate_sign, ')'),
+             color = if_else(estimate > 0, 'green', 'red'),
+             figure_text = paste0(estimate_sign, '\n', p_symbol)
+             )
+  )
+
+}, mod_list = alpha_fd_mods_mixed_fish) %>% 
+  bind_rows(.id = 'metric')
+
+
+fd_longer_format <- fd_ses_df_lake_wider %>% 
+  select(lake, fish, fric_ses, fdis_ses, fdiv_ses, feve_ses, nsp, M.prime, qEt, qDTM) %>% 
+  pivot_longer(cols = fric_ses:qDTM, names_to = 'metric', values_to = 'value')
+
+multidim_fd_alpha_plots <- fd_longer_format %>%
+  filter(metric %in% c('fric_ses', 'fdis_ses', 'fdiv_ses', 'feve_ses')) %>% 
+  mutate(fish = if_else(fish == '1', 'Fish', 'Fishless'),
+         metric = factor(dplyr::recode(metric,
+                                'fric_ses' = 'Richness',
+                                'fdis_ses' = 'Dispersion',
+                                'fdiv_ses' = 'Divergence',
+                                'feve_ses' = 'Evenness'),
+                         levels = c('Richness', 'Dispersion', 'Divergence', 'Evenness')),
+         fish = factor(fish, levels = c('Fishless', 'Fish'))) %>%
+  ggplot() +
+  #geom_boxplot(aes(x = metric, y = value, fill = fish),
+  #             alpha = 0.3, outlier.shape = NA, color = '#a6a6a6', lwd = 0.8) +
+  geom_boxplot(aes(x = metric, y = value, fill = fish, color = fish),
+               alpha = 0.2, lwd = 0.8, outlier.shape = NA, #color = '#a6a6a6', 
+               position = position_dodge(width = 0.875)) +
+  #geom_violin(aes(x = metric, y = value, fill = fish),
+  #            alpha = 0.3, color = '#a6a6a6', lwd = 0.8) +
+  geom_point(aes(x = metric, y = value, fill = fish, group = fish, color = fish),
+             size = 2,
+             position = position_jitterdodge(dodge.width = 0.875, jitter.width = 0.2)) +
+  geom_text(data = fish_mod_summary %>%
+              filter(metric %in% c('FRic', 'FDis', 'FDiv', 'FEve')) %>% 
+              mutate(metric = factor(dplyr::recode(metric,
+                                                   'FRic' = 'Richness',
+                                                   'FDis' = 'Dispersion',
+                                                   'FDiv' = 'Divergence',
+                                                   'FEve' = 'Evenness'),
+                                     levels = c('Richness', 'Dispersion', 'Divergence', 'Evenness'))), 
+            aes(x = metric, y = 2.6, label = figure_text), 
+            col = 'black', size = 8, lineheight = 0.75)  +
+  xlab('Functional diversity') +
+  ylab('Standardized effect size') +
+  scale_fill_manual(values = c('#DC3220', '#005AB5')) +
+  scale_color_manual(values = c('#DC3220', '#005AB5')) +
+  theme_bw() +
+  theme(axis.title = element_text(size = 19),
+        axis.text.x = element_text(size = 15),
+        legend.title=element_blank(),
+        legend.text = element_text(size = 15),
+        panel.grid.minor = element_blank(),
+        panel.grid.major.x = element_blank()) +
+  ylim(-2, 2.75)
+
+ggsave(multidim_fd_alpha_plots,
+       filename = here('figures', 'multidim_fd_alpha.png'), 
+       width = 13*0.8, height = 7*0.8)
+  
+
+scheiner_alpha_plot <- fd_longer_format %>%
+  filter(metric %in% c('nsp', 'M.prime', 'qEt', 'qDTM')) %>% 
+  mutate(fish = factor(if_else(fish == '1', 'Fish', 'Fishless'), levels = c('Fishless', 'Fish')),
+         metric = factor(dplyr::recode(metric,
+                                       'nsp' = 'Species richness',
+                                       'M.prime' = 'M.prime',
+                                       'qEt' = 'qEt',
+                                       'qDTM' = 'qDTM'),
+                         levels = c('qDTM', 'M.prime', 'qEt', 'Species richness'))) %>%
+  ggplot() +
+  #geom_boxplot(aes(x = metric, y = value, fill = fish),
+  #             alpha = 0.3, outlier.shape = NA, color = '#a6a6a6', lwd = 0.8) +
+  geom_boxplot(aes(x = metric, y = value, fill = fish),
+               alpha = 0.3, outlier.shape = NA, color = '#a6a6a6', lwd = 0.8, position = position_dodge(width = 0.875)) +
+  #geom_violin(aes(x = metric, y = value, fill = fish),
+  #            alpha = 0.3, color = '#a6a6a6', lwd = 0.8) +
+  geom_point(aes(x = metric, y = value, fill = fish, group = fish, color = fish),
+             size = 2,
+             position = position_jitterdodge(dodge.width = 0.875, jitter.width = 0.2)) +
+  geom_text(data = fish_mod_summary %>%
+              filter(metric %in% c('nsp', 'M.prime', 'qEt', 'qDTM')) %>% 
+              mutate(metric = factor(dplyr::recode(metric,
+                                                   'nsp' = 'Species richness',
+                                                   'M.prime' = 'M.prime',
+                                                   'qEt' = 'qEt',
+                                                   'qDTM' = 'qDTM'),
+                                     levels = c('qDTM', 'M.prime', 'qEt', 'Species richness'))), 
+            aes(x=metric, y = Inf, label = figure_text), col = 'black', 
+            size = 8, vjust = 1, lineheight = 0.75) +
+  xlab('Functional diversity') +
+  ylab('Standardized effect size') +
+  scale_fill_manual(values = c('#DC3220', '#005AB5')) +
+  scale_color_manual(values = c('#DC3220', '#005AB5')) +
+  theme_bw() +
+  theme(#axis.title = element_text(size = 19),
+        axis.title = element_blank(),
+        #axis.text.x = element_text(size = 15),
+        axis.text.x = element_blank(),
+        legend.title = element_blank(),
+        legend.text = element_text(size = 15),
+        panel.grid.minor = element_blank(),
+        panel.grid.major.x = element_blank()) +
+  facet_wrap(~metric, scales = 'free')
+
+ggsave(scheiner_alpha_plot,
+       filename = here('figures', 'scheiner_fd_alpha.png'), 
+       width = 13*0.8, height = 7*0.8)
+
+
+  
+
+mod_rename_list_mixed <- list()
+for (FD in names(alpha_fd_mods_mixed)) {
+  for (x in names(alpha_fd_mods_mixed[[FD]][["top_mods"]])) {
+    mod_var <- paste(rownames(summary(alpha_fd_mods_mixed[[FD]][["top_mods"]][[x]])$coefficients$cond), collapse = " + ")
+    mod_rename <- gsub(pattern = '\\(Intercept\\)', 'intercept', mod_var)
+    mod_rename_list_mixed[[FD]][[mod_rename]] <- alpha_fd_mods_mixed[[FD]][["top_mods"]][[x]]
+  }
+}
+
+selection_table_list_mixed <- lapply(mod_rename_list_mixed, function(x) aictab(cand.set = x) )
+
+
 
 
 

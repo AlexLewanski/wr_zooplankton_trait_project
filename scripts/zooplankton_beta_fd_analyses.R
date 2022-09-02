@@ -178,14 +178,40 @@ for (i in seq_len(nrow(pairwise_lake_combos))) {
                                                                      as.data.frame((beta_calc[names(beta_calc) != 'disp.mat.weight']))
   )
   
-  setTxtProgressBar(beta_progress, i) #udpate progress bar
+  setTxtProgressBar(beta_progress, i) #update progress bar
 }
-
 
 pairwise_beta_df <- bind_rows(pairwise_beta_list, .id = 'lake')
 
 write.csv(x = pairwise_beta_df,
           file = here('results', 'pairwise_beta_fd_scheiner.csv'), row.names = FALSE)
+
+
+
+count_dat_processed_beta_comdist <- count_dat_processed_beta %>% 
+  column_to_rownames(var = 'lake') %>% 
+  t()
+
+count_dat_processed_beta_comdist_reorder <- count_dat_processed_beta_comdist[match(rownames(zoo_msd_calc$supplementary_info$PCoA_list[[optimal_func_space_info$correction]][,1:optimal_func_space_info$dim]),
+                                                                                   rownames(count_dat_processed_beta_comdist)),]
+
+
+zooplankton_weighted_mean_list <- list()
+for (i in 1:ncol(count_dat_processed_beta_comdist_reorder)) {
+  
+  #mean of each trait in each community weighted by the abundance of taxa in the community
+  zooplankton_weighted_mean_list[[i]] <- as.data.frame(as.list(apply(zoo_msd_calc$supplementary_info$PCoA_list[[optimal_func_space_info$correction]][,1:optimal_func_space_info$dim], 
+                                                         2, function(x) weighted.mean(x, w = count_dat_processed_beta_comdist_reorder[,i]))))
+  
+  zooplankton_weighted_mean_list[[i]]$community <- colnames(count_dat_processed_beta_comdist_reorder)[i]
+}
+
+zooplankton_weighted_mean_df <- do.call(rbind, zooplankton_weighted_mean_list) %>% 
+  column_to_rownames(var = 'community') 
+
+zooplankton_weighted_mean_dist <- dist(zooplankton_weighted_mean_df)
+
+
 
 
 pairwise_beta_df <- read.csv(here('results', 'pairwise_beta_fd_scheiner.csv'))
@@ -201,277 +227,471 @@ qdtm.div <- adonis2(dist_qdtm_beta_reorder ~ fish,
                     permutations = 9999)
 
 
-beta_pco <- dudi.pco(quasieuclid(dist_qdtm_beta_reorder), scannf = FALSE, full = TRUE)
+qdtm_beta_pco <- dudi.pco(quasieuclid(dist_qdtm_beta_reorder), scannf = FALSE, full = TRUE)
+
+weighted_com_dist_pco <- dudi.pco(quasieuclid(zooplankton_weighted_mean_dist), scannf = FALSE, full = TRUE)
 
 
-beta_pco$li %>% 
-  select(1:5) %>% 
-  rownames_to_column(var = 'lake') %>% 
+beta_dist_list <- list(qdtm = dist_qdtm_beta,
+                       weighted_mean = zooplankton_weighted_mean_dist)
+
+multidim_analyses <- lapply(beta_dist_list, function(x, lake_info) {
+  
+  output_list <- list()
+  
+  output_list[['reorded_dist']] <- reorder_dist(dist_mat = x, 
+                                                new_order = lake_info$lake)
+  
+  output_list[['permanova']] <- adonis2(output_list[['reorded_dist']] ~ fish, 
+                                        data = lake_info %>% mutate(fish = as.character(fish)), 
+                                        permutations = 9999)
+  
+  output_list[['permdisp']] <- betadisper(d = output_list[['reorded_dist']], 
+                                          group = lake_info %>% mutate(fish = as.factor(fish)) %>% pull(fish), 
+                                           type = c("median","centroid")[2], 
+                                          bias.adjust = TRUE)
+  
+  output_list[['permdisp_sig']] <- TukeyHSD(x = output_list[['permdisp']], 
+                                             which = "group", ordered = FALSE,
+                                             conf.level = 0.95)
+  
+  return(output_list)
+  
+}, lake_info = processed_lake_info)
+
+
+#how similar are the two beta diversity measures?
+mantel.rtest(multidim_analyses$qdtm$reorded_dist,
+             multidim_analyses$weighted_mean$reorded_dist)
+
+
+
+
+multidim_analyses$qdtm$permanova
+multidim_analyses$weighted_mean$permanova
+
+multidim_analyses$qdtm$permdisp
+multidim_analyses$qdtm$permdisp_sig
+
+multidim_analyses$weighted_mean$permdisp
+multidim_analyses$weighted_mean$permdisp_sig
+
+
+# qdtm_beta_pco$li %>% 
+#   select(1:5) %>% 
+#   rownames_to_column(var = 'lake') %>% 
+#   left_join(., 
+#           processed_lake_info %>% mutate(fish = as.character(fish)), by = 'lake') %>%
+#   mutate(fish_info = if_else(fish == '1', 'fish', 'fishless')) %>% 
+#   ggplot() +
+#   geom_point(aes(x = A1, y = A2, color = fish_info), size = 5, alpha = 0.7) +
+#   scale_color_manual(values = c('#0A9396', '#BB3E03')) +
+#   xlab(paste0('PC1 (', round((qdtm_beta_pco$eig/sum(qdtm_beta_pco$eig))*100, 2)[1], '%)') ) + 
+#   ylab(paste0('PC2 (', round((qdtm_beta_pco$eig/sum(qdtm_beta_pco$eig))*100, 2)[2], '%)') ) + 
+#   theme_bw() +
+#   theme(legend.title = element_blank(),
+#         axis.title = element_text(size = 15))
+#   
+# ggsave(filename = here('figures', 'beta_pairwise_pcoa.png'), 
+#        width = 13*0.65, height = 9*0.65, bg = 'white')
+
+
+
+# weighted_com_dist_pco$li %>% 
+#   rownames_to_column(var = 'lake') %>% 
+#   left_join(., 
+#             processed_lake_info %>% mutate(fish = as.character(fish)), by = 'lake') %>%
+#   mutate(fish_info = if_else(fish == '1', 'fish', 'fishless')) %>% 
+#   ggplot() +
+#   geom_point(aes(x = A1, y = A2, color = fish_info), size = 5, alpha = 0.7) +
+#   scale_color_manual(values = c('#0A9396', '#BB3E03')) +
+#   xlab(paste0('PC1 (', round((weighted_com_dist_pco$eig/sum(weighted_com_dist_pco$eig))*100, 2)[1], '%)') ) + 
+#   ylab(paste0('PC2 (', round((weighted_com_dist_pco$eig/sum(weighted_com_dist_pco$eig))*100, 2)[2], '%)') ) + 
+#   theme_bw() +
+#   theme(legend.title = element_blank(),
+#         axis.title = element_text(size = 15))
+
+
+
+beta_div_pcoa <- rbind(qdtm_beta_pco$li[1:4] %>% 
+        mutate(beta_type = 'qDTM beta') %>% 
+        rownames_to_column(var = 'lake'),
+      weighted_com_dist_pco$li %>% 
+        mutate(beta_type = 'Weighted mean distance') %>% 
+        rownames_to_column(var = 'lake')) %>%
   left_join(., 
-          processed_lake_info %>% mutate(fish = as.character(fish)), by = 'lake') %>%
+            processed_lake_info %>% mutate(fish = as.character(fish)), by = 'lake') %>%
   mutate(fish_info = if_else(fish == '1', 'fish', 'fishless')) %>% 
   ggplot() +
   geom_point(aes(x = A1, y = A2, color = fish_info), size = 5, alpha = 0.7) +
   scale_color_manual(values = c('#0A9396', '#BB3E03')) +
-  xlab(paste0('PC1 (', round((beta_pco$eig/sum(beta_pco$eig))*100, 2)[1], '%)') ) + 
-  ylab(paste0('PC2 (', round((beta_pco$eig/sum(beta_pco$eig))*100, 2)[2], '%)') ) + 
+  #xlab(paste0('PC1 (', round((weighted_com_dist_pco$eig/sum(weighted_com_dist_pco$eig))*100, 2)[1], '%)') ) + 
+  #ylab(paste0('PC2 (', round((weighted_com_dist_pco$eig/sum(weighted_com_dist_pco$eig))*100, 2)[2], '%)') ) + 
+  xlab('PC1') + ylab('PC2') +
   theme_bw() +
   theme(legend.title = element_blank(),
-        axis.title = element_text(size = 15))
-  
-ggsave(filename = here('figures', 'beta_pairwise_pcoa.png'), 
-       width = 13*0.65, height = 9*0.65, bg = 'white')
+        axis.title = element_text(size = 15)) +
+  facet_wrap(~beta_type, scales = 'free')
 
-
-prac_betadisp <- betadisper(d = dist_qdtm_beta_reorder, 
-                            group = processed_lake_info %>% mutate(fish = as.factor(fish)) %>% pull(fish), 
-                            type = c("median","centroid")[1], bias.adjust = TRUE)
-
-TukeyHSD(x = prac_betadisp, which = "group", ordered = FALSE,
-         conf.level = 0.95)
-
-
-
-processed_lake_info1 <- processed_lake_info %>% 
-  mutate(fish_info = if_else(fish == 1, 'fish', 'fishless')) %>% 
-  select(lake, fish_info)
-
-fish_fishless_list <- split(processed_lake_info1, 
-                            processed_lake_info1$fish_info)
-
-
-fish_fishless_beta_analysis_list <- lapply(fish_fishless_list, function(x, func_space, count_dat, full_count_data) {
-  
-  lake_vec <- x$lake
-  
-  count_dat_subset <- count_dat %>% 
-    filter(lake %in% lake_vec ) %>% 
-    column_to_rownames(var = 'lake')
-  
-  count_dat_subset2 <- count_dat_subset[, match(rownames(as.matrix(func_space)), colnames(count_dat_subset) )]
-  
-  
-  beta_calc <- FTD.beta(tdmat = func_space,
-                        spmat = count_dat_subset2,
-                        abund = TRUE, q = 1)
-  
-  
-  rando_subsets_list <- replicate(1000, count_dat_processed_beta %>%
-                                    column_to_rownames(var = 'lake') %>% 
-                                    slice_sample(n = length(lake_vec), replace = TRUE),
-                                  simplify = FALSE)
-  
-  message('starting calculations of random lake subsets for the ', x$fish_info[1], ' lakes')
-  beta_rand_progress <- txtProgressBar(min = 0, max = length(rando_subsets_list), 
-                                       char = "*", style = 3)
-  rand_beta_list <- list()
-  
-  for (i in seq_along(rando_subsets_list)) {
-    
-    count_rand_subset <- rando_subsets_list[[i]][, match(rownames(as.matrix(zoo_dist_processed_func_space)), colnames(rando_subsets_list[[i]]) )]
-    
-    beta_calc_rand_subset <- FTD.beta(tdmat = zoo_dist_processed_func_space,
-                                      spmat = count_rand_subset,
-                                      abund = TRUE, q = 1)
-    
-    rand_beta_list[[paste('rand', i, sep = '_')]] <- as.data.frame((beta_calc_rand_subset[names(beta_calc_rand_subset) != 'disp.mat.weight']))
-    setTxtProgressBar(beta_rand_progress, i)
-    
-  }
-  
-  observed_beta <- data.frame(fish_info = x$fish_info[1],
-                              dataset = 'observed',
-                              as.data.frame((beta_calc[names(beta_calc) != 'disp.mat.weight'])))
-  
-  rand_beta <- bind_rows(rand_beta_list, .id = 'dataset') %>% 
-    mutate(fish_info = x$fish_info[1]) %>% 
-    relocate(fish_info, .before = dataset)
-  
-  return(list(observed = observed_beta,
-              randomized = rand_beta ))
-  
-}, func_space = zoo_dist_processed_func_space, count_dat = count_dat_processed_beta)
-
-saveRDS(fish_fishless_beta_analysis_list,
-        here('results', 'fish_fishless_beta_comparetorandom_list.rds'))
-
-
-fish_fishless_beta_analysis_list <- readRDS(here('results', 'fish_fishless_beta_comparetorandom_list.rds'))
-
-
-fish_fishless_beta_analysis_list$fish$randomized %>% 
-  ggplot() +
-  geom_histogram(aes(x = qDTM.beta), fill = 'gray') +
-  geom_vline(xintercept = fish_fishless_beta_analysis_list$fish$observed$qDTM.beta) +
-  theme_bw()
-
-
-fish_fishless_beta_analysis_list$fishless$randomized %>% 
-  ggplot() +
-  geom_histogram(aes(x = qDTM.beta), fill = 'gray') +
-  geom_vline(xintercept = fish_fishless_beta_analysis_list$fishless$observed$qDTM.beta) +
-  theme_bw()
+ggsave(filename = here('figures', 'beta_div_pcoa_fig.png'), 
+       plot = beta_div_pcoa,
+       width = 13*0.65, height = 6*0.65, bg = 'white')
 
 
 
 
-within_treatment_beta_analysis_list <- lapply(fish_fishless_list, function(x, func_space, count_dat, full_count_data) {
-  
-  lake_vec <- x$lake
-  
-  count_dat_subset <- count_dat %>% 
-    filter(lake %in% lake_vec ) %>% 
-    column_to_rownames(var = 'lake')
-  
-  count_dat_subset2 <- count_dat_subset[, match(rownames(as.matrix(func_space)), colnames(count_dat_subset) )]
-  
-  
-  beta_calc <- FTD.beta(tdmat = func_space,
-                        spmat = count_dat_subset2,
-                        abund = TRUE, q = 1)
-  
-  
-  rando_subsets_list <- replicate(100, count_dat_subset %>%
-                                    #column_to_rownames(var = 'lake') %>% 
-                                    slice_sample(n = nrow(count_dat_subset), replace = TRUE),
-                                  simplify = FALSE)
-  
-  message('starting calculations of random lake subsets for the ', x$fish_info[1], ' lakes')
-  beta_rand_progress <- txtProgressBar(min = 0, max = length(rando_subsets_list), 
-                                       char = "*", style = 3)
-  rand_beta_list <- list()
-  
-  for (i in seq_along(rando_subsets_list)) {
-    
-    count_rand_subset <- rando_subsets_list[[i]][, match(rownames(as.matrix(zoo_dist_processed_func_space)), colnames(rando_subsets_list[[i]]) )]
-    
-    beta_calc_rand_subset <- FTD.beta(tdmat = zoo_dist_processed_func_space,
-                                      spmat = count_rand_subset,
-                                      abund = TRUE, q = 1)
-    
-    rand_beta_list[[paste('rand', i, sep = '_')]] <- as.data.frame((beta_calc_rand_subset[names(beta_calc_rand_subset) != 'disp.mat.weight']))
-    setTxtProgressBar(beta_rand_progress, i)
-    
-  }
-  
-  observed_beta <- data.frame(fish_info = x$fish_info[1],
-                              dataset = 'observed',
-                              as.data.frame((beta_calc[names(beta_calc) != 'disp.mat.weight'])))
-  
-  rand_beta <- bind_rows(rand_beta_list, .id = 'dataset') %>% 
-    mutate(fish_info = x$fish_info[1]) %>% 
-    relocate(fish_info, .before = dataset)
-  
-  return(list(observed = observed_beta,
-              randomized = rand_beta ))
-  
-}, func_space = zoo_dist_processed_func_space, count_dat = count_dat_processed_beta)
-
-saveRDS(within_treatment_beta_analysis_list,
-        here('results', 'within_treatment_beta_analysis_list.rds'))
-
-within_treatment_beta_analysis_list <- readRDS(here('results', 'within_treatment_beta_analysis_list.rds'))
-
-
-
-rbind(within_treatment_beta_analysis_list$fish$randomized,
-      within_treatment_beta_analysis_list$fishless$randomized) %>% 
-  ggplot() +
-  geom_histogram(aes(x = qDTM.beta, fill = fish_info), position="identity", alpha = 0.5) +
-  theme_bw()
-
-
-
-
-
-
-within_treatment_beta_analysis_largersubset_list <- lapply(fish_fishless_list, function(x, min_sample_size, func_space, count_dat, full_count_data) {
-  
-  lake_vec <- x$lake
-  
-  count_dat_subset <- count_dat %>% 
-    filter(lake %in% lake_vec ) %>% 
-    column_to_rownames(var = 'lake')
-  
-  count_dat_subset2 <- count_dat_subset[, match(rownames(as.matrix(func_space)), colnames(count_dat_subset) )]
-  
-  
-  beta_calc <- FTD.beta(tdmat = func_space,
-                        spmat = count_dat_subset2,
-                        abund = TRUE, q = 1)
-  
-  
-  rando_subsets_list <- replicate(1000, count_dat_subset %>%
-                                    #column_to_rownames(var = 'lake') %>% 
-                                    slice_sample(n = min_sample_size, replace = TRUE),
-                                  simplify = FALSE)
-  
-  message('starting calculations of random lake subsets for the ', x$fish_info[1], ' lakes')
-  beta_rand_progress <- txtProgressBar(min = 0, max = length(rando_subsets_list), 
-                                       char = "*", style = 3)
-  rand_beta_list <- list()
-  
-  for (i in seq_along(rando_subsets_list)) {
-    
-    count_rand_subset <- rando_subsets_list[[i]][, match(rownames(as.matrix(zoo_dist_processed_func_space)), colnames(rando_subsets_list[[i]]) )]
-    
-    beta_calc_rand_subset <- FTD.beta(tdmat = zoo_dist_processed_func_space,
-                                      spmat = count_rand_subset,
-                                      abund = TRUE, q = 1)
-    
-    rand_beta_list[[paste('rand', i, sep = '_')]] <- as.data.frame((beta_calc_rand_subset[names(beta_calc_rand_subset) != 'disp.mat.weight']))
-    setTxtProgressBar(beta_rand_progress, i)
-    
-  }
-  
-  observed_beta <- data.frame(fish_info = x$fish_info[1],
-                              dataset = 'observed',
-                              as.data.frame((beta_calc[names(beta_calc) != 'disp.mat.weight'])))
-  
-  rand_beta <- bind_rows(rand_beta_list, .id = 'dataset') %>% 
-    mutate(fish_info = x$fish_info[1]) %>% 
-    relocate(fish_info, .before = dataset)
-  
-  return(list(observed = observed_beta,
-              randomized = rand_beta ))
-  
-}, func_space = zoo_dist_processed_func_space, count_dat = count_dat_processed_beta, min_sample_size = min(table(processed_lake_info1$fish_info)))
-
-
-saveRDS(within_treatment_beta_analysis_largersubset_list,
-        here('results', 'within_treatment_beta_analysis_largersubset_list.rds'))
-
-within_treatment_beta_analysis_largersubset_list <- readRDS(here('results', 'within_treatment_beta_analysis_largersubset_list.rds'))
-
-      
-rbind(within_treatment_beta_analysis_largersubset_list$fish$randomized,
-      within_treatment_beta_analysis_largersubset_list$fishless$randomized) %>% 
-  ggplot() +
-  geom_histogram(aes(x = qDTM.beta, fill = fish_info), 
-                 position="identity", alpha = 0.5, bins = 30) +
-  #scale_fill_manual(values = c('#005F73', '#AE2012')) +
-  scale_fill_manual(values = c('#0A9396', '#BB3E03')) +
-  #geom_vline(xintercept = within_treatment_beta_analysis_largersubset_list$fish$observed$qDTM.beta ) +
-  #geom_vline(xintercept = within_treatment_beta_analysis_largersubset_list$fishless$observed$qDTM.beta ) +
-  theme_bw() +
-  ylab('Count') + xlab('qDTM (beta)') +
-  theme(legend.title = element_blank())
-
-ggsave(filename = here('figures', 'fish_fishless_beta_bootstrap.png'), 
-       width = 13*0.65, height = 9*0.65, bg = 'white')
-
-
-
-
-
-rbind(within_treatment_beta_analysis_largersubset_list$fish$randomized,
-      within_treatment_beta_analysis_largersubset_list$fishless$randomized) %>% 
-  ggplot() +
-  geom_histogram(aes(x = M.beta.prime, fill = fish_info), 
-                 position="identity", alpha = 0.5, bins = 30) +
-  theme_bw()
-
-
+# 
+# processed_lake_info1 <- processed_lake_info %>% 
+#   mutate(fish_info = if_else(fish == 1, 'fish', 'fishless')) %>% 
+#   select(lake, fish_info)
+# 
+# fish_fishless_list <- split(processed_lake_info1, 
+#                             processed_lake_info1$fish_info)
+# 
+# 
+# fish_fishless_beta_analysis_list <- lapply(fish_fishless_list, function(x, func_space, count_dat, full_count_data) {
+#   
+#   lake_vec <- x$lake
+#   
+#   count_dat_subset <- count_dat %>% 
+#     filter(lake %in% lake_vec ) %>% 
+#     column_to_rownames(var = 'lake')
+#   
+#   count_dat_subset2 <- count_dat_subset[, match(rownames(as.matrix(func_space)), colnames(count_dat_subset) )]
+#   
+#   
+#   beta_calc <- FTD.beta(tdmat = func_space,
+#                         spmat = count_dat_subset2,
+#                         abund = TRUE, q = 1)
+#   
+#   
+#   rando_subsets_list <- replicate(1000, count_dat_processed_beta %>%
+#                                     column_to_rownames(var = 'lake') %>% 
+#                                     slice_sample(n = length(lake_vec), replace = TRUE),
+#                                   simplify = FALSE)
+#   
+#   message('starting calculations of random lake subsets for the ', x$fish_info[1], ' lakes')
+#   beta_rand_progress <- txtProgressBar(min = 0, max = length(rando_subsets_list), 
+#                                        char = "*", style = 3)
+#   rand_beta_list <- list()
+#   
+#   for (i in seq_along(rando_subsets_list)) {
+#     
+#     count_rand_subset <- rando_subsets_list[[i]][, match(rownames(as.matrix(zoo_dist_processed_func_space)), colnames(rando_subsets_list[[i]]) )]
+#     
+#     beta_calc_rand_subset <- FTD.beta(tdmat = zoo_dist_processed_func_space,
+#                                       spmat = count_rand_subset,
+#                                       abund = TRUE, q = 1)
+#     
+#     rand_beta_list[[paste('rand', i, sep = '_')]] <- as.data.frame((beta_calc_rand_subset[names(beta_calc_rand_subset) != 'disp.mat.weight']))
+#     setTxtProgressBar(beta_rand_progress, i)
+#     
+#   }
+#   
+#   observed_beta <- data.frame(fish_info = x$fish_info[1],
+#                               dataset = 'observed',
+#                               as.data.frame((beta_calc[names(beta_calc) != 'disp.mat.weight'])))
+#   
+#   rand_beta <- bind_rows(rand_beta_list, .id = 'dataset') %>% 
+#     mutate(fish_info = x$fish_info[1]) %>% 
+#     relocate(fish_info, .before = dataset)
+#   
+#   return(list(observed = observed_beta,
+#               randomized = rand_beta ))
+#   
+# }, func_space = zoo_dist_processed_func_space, count_dat = count_dat_processed_beta)
+# 
+# saveRDS(fish_fishless_beta_analysis_list,
+#         here('results', 'fish_fishless_beta_comparetorandom_list.rds'))
+# 
+# 
+# fish_fishless_beta_analysis_list <- readRDS(here('results', 'fish_fishless_beta_comparetorandom_list.rds'))
+# 
+# 
+# fish_fishless_beta_analysis_list$fish$randomized %>% 
+#   ggplot() +
+#   geom_histogram(aes(x = qDTM.beta), fill = 'gray') +
+#   geom_vline(xintercept = fish_fishless_beta_analysis_list$fish$observed$qDTM.beta) +
+#   theme_bw()
+# 
+# 
+# fish_fishless_beta_analysis_list$fishless$randomized %>% 
+#   ggplot() +
+#   geom_histogram(aes(x = qDTM.beta), fill = 'gray') +
+#   geom_vline(xintercept = fish_fishless_beta_analysis_list$fishless$observed$qDTM.beta) +
+#   theme_bw()
+# 
+# 
+# 
+# 
+# fish_fishless_df <- bind_rows(fish_fishless_list)
+# 
+# fish_fishless_df <- rbind(fish_fishless_list$fish[sample(1:nrow(fish_fishless_list$fishless)),], fish_fishless_list$fishless)
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# observed_beta_list <- list()
+# for (i in c('fish', 'fishless')) {
+#     
+#   lake_vec <- fish_fishless_df[fish_fishless_df$fish_info == i,]$lake
+#     
+#   count_dat_subset <- count_dat_processed_beta %>% 
+#     filter(lake %in% lake_vec) %>% 
+#     column_to_rownames(var = 'lake')
+#     
+#   count_dat_subset2 <- count_dat_subset[, match(rownames(as.matrix(zoo_dist_processed_func_space)), colnames(count_dat_subset) )]
+#     
+#   beta_calc <- FTD.beta(tdmat = zoo_dist_processed_func_space,
+#                         spmat = count_dat_subset2,
+#                         abund = TRUE, q = 1)
+#     
+#   observed_beta_list[[i]] <- as.data.frame((beta_calc[names(beta_calc) != 'disp.mat.weight']))
+#     
+# }
+#   
+#   
+# observed_beta_dif <- data.frame(M.beta_diff = observed_beta_list$fishless$M.beta - observed_beta_list$fish$M.beta,
+#                                         M.beta.prime_dif = observed_beta_list$fishless$M.beta.prime - observed_beta_list$fish$M.beta.prime,
+#                                         Ht.beta_dif = observed_beta_list$fishless$Ht.beta - observed_beta_list$fish$Ht.beta,
+#                                         qDT.beta_dif = observed_beta_list$fishless$qDT.beta - observed_beta_list$fish$qDT.beta,
+#                                         qDTM.beta_dif = observed_beta_list$fishless$qDTM.beta - observed_beta_list$fish$qDTM.beta)
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# permuted_fish_info <- lapply(1:100, function(x, dat) {
+#   dat$fish_info <- sample(dat$fish_info)
+#   return(dat)
+# }, dat = fish_fishless_df)
+# 
+# 
+# beta_rand_progress <- txtProgressBar(min = 0, max = length(permuted_fish_info), 
+#                                      char = "*", style = 3)
+# permuted_beta_list <- list()
+# for (x in 1:length(permuted_fish_info)) {
+#   beta_list <- list()
+#   for (i in c('fish', 'fishless')) {
+#     
+#     lake_vec <- permuted_fish_info[[x]][permuted_fish_info[[x]]$fish_info == i,]$lake
+#     
+#     count_dat_subset <- count_dat_processed_beta %>% 
+#       filter(lake %in% lake_vec) %>% 
+#       column_to_rownames(var = 'lake')
+#     
+#     count_dat_subset2 <- count_dat_subset[, match(rownames(as.matrix(zoo_dist_processed_func_space)), colnames(count_dat_subset) )]
+#     
+#     beta_calc <- FTD.beta(tdmat = zoo_dist_processed_func_space,
+#                           spmat = count_dat_subset2,
+#                           abund = TRUE, q = 1)
+#     
+#     beta_list[[i]] <- as.data.frame((beta_calc[names(beta_calc) != 'disp.mat.weight']))
+#     
+#   }
+#   
+#   
+#   permuted_beta_list[[x]] <- data.frame(M.beta_diff = beta_list$fishless$M.beta - beta_list$fish$M.beta,
+#              M.beta.prime_dif = beta_list$fishless$M.beta.prime - beta_list$fish$M.beta.prime,
+#              Ht.beta_dif = beta_list$fishless$Ht.beta - beta_list$fish$Ht.beta,
+#              qDT.beta_dif = beta_list$fishless$qDT.beta - beta_list$fish$qDT.beta,
+#              qDTM.beta_dif = beta_list$fishless$qDTM.beta - beta_list$fish$qDTM.beta)
+#   
+#   setTxtProgressBar(beta_rand_progress, x)
+# }
+# 
+# fish_fishless_beta_analysis_list
+# 
+# bind_rows(permuted_beta_list) %>% 
+#   ggplot() +
+#   geom_histogram(aes(x = qDTM.beta_dif), bins = 15, fill = 'gray') +
+#   geom_vline(xintercept = observed_beta_dif$qDTM.beta_dif, color = 'red') +
+#   theme_bw()
+# 
+# permuted_beta_list
+# 
+# #fishless - fish
+# #decreasing difference: the two lakes types have more similar beta diversity
+# 
+# count_dat_subset2 <- count_dat_subset[, match(rownames(as.matrix(zoo_dist_processed_func_space)), colnames(count_dat_subset) )]
+# 
+# beta_calc <- FTD.beta(tdmat = zoo_dist_processed_func_space,
+#                       spmat = count_dat_subset2,
+#                       abund = TRUE, q = 1)
+# 
+# 
+# data.frame(fish_info = fish_fishless_list$fish$fish_info[1],
+#            dataset = 'observed',
+#            as.data.frame((beta_calc[names(beta_calc) != 'disp.mat.weight'])))
+# 
+# 
+# within_treatment_beta_analysis_list <- lapply(fish_fishless_list, function(x, func_space, count_dat, full_count_data) {
+#   
+#   lake_vec <- x$lake
+#   
+#   count_dat_subset <- count_dat %>% 
+#     filter(lake %in% lake_vec ) %>% 
+#     column_to_rownames(var = 'lake')
+# 
+#     
+#   count_dat_subset2 <- count_dat_subset[, match(rownames(as.matrix(func_space)), colnames(count_dat_subset) )]
+#   
+#   beta_calc <- FTD.beta(tdmat = func_space,
+#                         spmat = count_dat_subset2,
+#                         abund = TRUE, q = 1)
+#   
+#   
+#   rando_subsets_list <- replicate(100, count_dat_subset %>%
+#                                     #column_to_rownames(var = 'lake') %>% 
+#                                     slice_sample(n = nrow(count_dat_subset), replace = TRUE),
+#                                   simplify = FALSE)
+#   
+#   message('starting calculations of random lake subsets for the ', x$fish_info[1], ' lakes')
+#   beta_rand_progress <- txtProgressBar(min = 0, max = length(rando_subsets_list), 
+#                                        char = "*", style = 3)
+#   rand_beta_list <- list()
+#   
+#   for (i in seq_along(rando_subsets_list)) {
+#     
+#     count_rand_subset <- rando_subsets_list[[i]][, match(rownames(as.matrix(zoo_dist_processed_func_space)), colnames(rando_subsets_list[[i]]) )]
+#     
+#     beta_calc_rand_subset <- FTD.beta(tdmat = zoo_dist_processed_func_space,
+#                                       spmat = count_rand_subset,
+#                                       abund = TRUE, q = 1)
+#     
+#     rand_beta_list[[paste('rand', i, sep = '_')]] <- as.data.frame((beta_calc_rand_subset[names(beta_calc_rand_subset) != 'disp.mat.weight']))
+#     setTxtProgressBar(beta_rand_progress, i)
+#     
+#   }
+#   
+#   observed_beta <- data.frame(fish_info = x$fish_info[1],
+#                               dataset = 'observed',
+#                               as.data.frame((beta_calc[names(beta_calc) != 'disp.mat.weight'])))
+#   
+#   rand_beta <- bind_rows(rand_beta_list, .id = 'dataset') %>% 
+#     mutate(fish_info = x$fish_info[1]) %>% 
+#     relocate(fish_info, .before = dataset)
+#   
+#   return(list(observed = observed_beta,
+#               randomized = rand_beta ))
+#   
+# }, func_space = zoo_dist_processed_func_space, count_dat = count_dat_processed_beta)
+# 
+# saveRDS(within_treatment_beta_analysis_list,
+#         here('results', 'within_treatment_beta_analysis_list.rds'))
+# 
+# within_treatment_beta_analysis_list <- readRDS(here('results', 'within_treatment_beta_analysis_list.rds'))
+# 
+# 
+# 
+# 
+# rbind(within_treatment_beta_analysis_list$fish$randomized,
+#       within_treatment_beta_analysis_list$fishless$randomized) %>% 
+#   ggplot() +
+#   geom_histogram(aes(x = qDTM.beta, fill = fish_info), position="identity", alpha = 0.5) +
+#   theme_bw()
+# 
+# 
+# 
+# 
+# 
+# 
+# within_treatment_beta_analysis_largersubset_list <- lapply(fish_fishless_list, function(x, min_sample_size, func_space, count_dat, full_count_data) {
+#   
+#   lake_vec <- x$lake
+#   
+#   count_dat_subset <- count_dat %>% 
+#     filter(lake %in% lake_vec ) %>% 
+#     column_to_rownames(var = 'lake')
+#   
+#   count_dat_subset2 <- count_dat_subset[, match(rownames(as.matrix(func_space)), colnames(count_dat_subset) )]
+#   
+#   
+#   beta_calc <- FTD.beta(tdmat = func_space,
+#                         spmat = count_dat_subset2,
+#                         abund = TRUE, q = 1)
+#   
+#   
+#   rando_subsets_list <- replicate(1000, count_dat_subset %>%
+#                                     #column_to_rownames(var = 'lake') %>% 
+#                                     slice_sample(n = min_sample_size, replace = TRUE),
+#                                   simplify = FALSE)
+#   
+#   message('starting calculations of random lake subsets for the ', x$fish_info[1], ' lakes')
+#   beta_rand_progress <- txtProgressBar(min = 0, max = length(rando_subsets_list), 
+#                                        char = "*", style = 3)
+#   rand_beta_list <- list()
+#   
+#   for (i in seq_along(rando_subsets_list)) {
+#     
+#     count_rand_subset <- rando_subsets_list[[i]][, match(rownames(as.matrix(zoo_dist_processed_func_space)), colnames(rando_subsets_list[[i]]) )]
+#     
+#     beta_calc_rand_subset <- FTD.beta(tdmat = zoo_dist_processed_func_space,
+#                                       spmat = count_rand_subset,
+#                                       abund = TRUE, q = 1)
+#     
+#     rand_beta_list[[paste('rand', i, sep = '_')]] <- as.data.frame((beta_calc_rand_subset[names(beta_calc_rand_subset) != 'disp.mat.weight']))
+#     setTxtProgressBar(beta_rand_progress, i)
+#     
+#   }
+#   
+#   observed_beta <- data.frame(fish_info = x$fish_info[1],
+#                               dataset = 'observed',
+#                               as.data.frame((beta_calc[names(beta_calc) != 'disp.mat.weight'])))
+#   
+#   rand_beta <- bind_rows(rand_beta_list, .id = 'dataset') %>% 
+#     mutate(fish_info = x$fish_info[1]) %>% 
+#     relocate(fish_info, .before = dataset)
+#   
+#   return(list(observed = observed_beta,
+#               randomized = rand_beta ))
+#   
+# }, func_space = zoo_dist_processed_func_space, count_dat = count_dat_processed_beta, min_sample_size = min(table(processed_lake_info1$fish_info)))
+# 
+# 
+# saveRDS(within_treatment_beta_analysis_largersubset_list,
+#         here('results', 'within_treatment_beta_analysis_largersubset_list.rds'))
+# 
+# within_treatment_beta_analysis_largersubset_list <- readRDS(here('results', 'within_treatment_beta_analysis_largersubset_list.rds'))
+# 
+#       
+# rbind(within_treatment_beta_analysis_largersubset_list$fish$randomized,
+#       within_treatment_beta_analysis_largersubset_list$fishless$randomized) %>% 
+#   ggplot() +
+#   geom_histogram(aes(x = qDTM.beta, fill = fish_info), 
+#                  position="identity", alpha = 0.5, bins = 30) +
+#   #scale_fill_manual(values = c('#005F73', '#AE2012')) +
+#   scale_fill_manual(values = c('#0A9396', '#BB3E03')) +
+#   #geom_vline(xintercept = within_treatment_beta_analysis_largersubset_list$fish$observed$qDTM.beta ) +
+#   #geom_vline(xintercept = within_treatment_beta_analysis_largersubset_list$fishless$observed$qDTM.beta ) +
+#   theme_bw() +
+#   ylab('Count') + xlab('qDTM (beta)') +
+#   theme(legend.title = element_blank())
+# 
+# ggsave(filename = here('figures', 'fish_fishless_beta_bootstrap.png'), 
+#        width = 13*0.65, height = 9*0.65, bg = 'white')
+# 
+# 
+# 
+# 
+# 
+# rbind(within_treatment_beta_analysis_largersubset_list$fish$randomized,
+#       within_treatment_beta_analysis_largersubset_list$fishless$randomized) %>% 
+#   ggplot() +
+#   geom_histogram(aes(x = M.beta.prime, fill = fish_info), 
+#                  position="identity", alpha = 0.5, bins = 30) +
+#   theme_bw()
+# 
+# 
 
 
 

@@ -739,6 +739,7 @@ observed_vardecomp <- lapply(setNames(nm = c('0', '1')), function(x, rel_abund_l
   bind_rows()
 
 
+
 #step 6: estimate confidence intervals on the variance decomposition values using the bootstrapping
 bs_dataset_list <- list()
 ci_vardecomp_list <- list()
@@ -773,18 +774,51 @@ vardecomp_fish_vs_fishless <- full_join(observed_vardecomp_pivot, ci_vardecomp_d
 
 
 #visualize results
+# vardecomp_fish_vs_fishless_plot <- vardecomp_fish_vs_fishless %>%
+#   filter(quantity %in% c('within_var_prop', 'between_var_prop')) %>% 
+#   mutate(quantity1 = factor(if_else(quantity == 'within_var_prop', 'within species', 'between species'), levels = c('within species', 'between species'))) %>% 
+#   ggplot() +
+#   geom_bar(aes(x = fish_info, y = observed, fill = quantity1), stat = 'identity', position = 'stack') +
+#   geom_errorbar(data = . %>% filter(quantity1 == 'between species'), #geom_linerange
+#     mapping = aes(x = fish_info, ymin = lower_ci, ymax = upper_ci),
+#                 width = 0.1) +
+#   geom_point(data = . %>% filter(quantity1 == 'between species'),
+#                 mapping = aes(x = fish_info, y = observed), size = 4) +
+#   ylim(0, 1) +
+#   ylab('Variance') +
+#   theme_bw() +
+#   theme(legend.title = element_blank(),
+#         axis.title.x = element_blank())
+# 
+# ggsave(plot = vardecomp_fish_vs_fishless_plot,
+#        filename = here('figures', 'intraspecific_results', 'vardecomp_fish_vs_fishless_plot.png'), 
+#        width = 15*0.7, height = 8*0.7, device = 'png')
+
+
+
+
 vardecomp_fish_vs_fishless_plot <- vardecomp_fish_vs_fishless %>%
-  filter(quantity %in% c('within_var_prop', 'between_var_prop')) %>% 
-  mutate(quantity1 = factor(if_else(quantity == 'within_var_prop', 'within species', 'between species'), levels = c('within species', 'between species'))) %>% 
-  ggplot() +
-  geom_bar(aes(x = fish_info, y = observed, fill = quantity1), stat = 'identity', position = 'stack') +
-  geom_errorbar(data = . %>% filter(quantity1 == 'between species'), #geom_linerange
-    mapping = aes(x = fish_info, ymin = lower_ci, ymax = upper_ci),
+  mutate(comparison_type = gsub("_.*", "", quantity)) %>% 
+  filter(quantity %in% c('within_var', 'between_var')) %>% 
+  mutate(quantity1 = factor(if_else(quantity == 'within_var', 'within species', 'between species'), levels = c('within species', 'between species')),
+         fish_info_update = factor(if_else(fish_info == 'fishless', "Fishless", "Fish"), levels = c('Fishless', 'Fish'))) %>% 
+  group_by(fish_info) %>% 
+  mutate(prop = observed/sum(observed),
+         prop_text = stringi::stri_pad_right(round(prop, 2), 4, 0)) %>% 
+  ggplot(mapping = aes(x = fish_info_update, y = observed, fill = quantity1)) +
+  geom_bar(data = . %>% filter(quantity %in% c('within_var', 'between_var')),
+           stat = 'identity', position = position_dodge()) + #stack
+  geom_errorbar(data = . %>% filter(quantity %in% c('within_var', 'between_var')),
+                mapping = aes(x = fish_info_update, ymin = lower_ci, ymax = upper_ci),
+                position = position_dodge(0.9),
                 width = 0.1) +
-  geom_point(data = . %>% filter(quantity1 == 'between species'),
-                mapping = aes(x = fish_info, y = observed), size = 4) +
-  ylim(0, 1) +
-  ylab('Variance') +
+  geom_point(data = . %>% filter(quantity %in% c('within_var', 'between_var')),
+             mapping = aes(x = fish_info_update, y = observed), 
+             position = position_dodge(0.9),
+             size = 2) +
+  ylab('Variance')  +
+  geom_text(aes(y = 0.025, label = prop_text), position = position_dodge(0.9), 
+            vjust = 0, size = 5) +
   theme_bw() +
   theme(legend.title = element_blank(),
         axis.title.x = element_blank())
@@ -792,6 +826,10 @@ vardecomp_fish_vs_fishless_plot <- vardecomp_fish_vs_fishless %>%
 ggsave(plot = vardecomp_fish_vs_fishless_plot,
        filename = here('figures', 'intraspecific_results', 'vardecomp_fish_vs_fishless_plot.png'), 
        width = 15*0.7, height = 8*0.7, device = 'png')
+
+
+
+
 
 #ggsave(plot = vardecomp_fish_vs_fishless_plot,
 #       filename = here('figures', 'intraspecific_results', 'vardecomp_fish_vs_fishless_plot.pdf'), 

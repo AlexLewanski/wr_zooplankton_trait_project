@@ -9,6 +9,7 @@
 ### SCRIPT PREPARATION ###
 ##########################
 
+### PACKAGES ###
 library(here)
 library(tidyverse)
 library(gawdis)
@@ -19,7 +20,6 @@ library(ggridges)
 
 #load custom functions
 source(here("scripts", "custom_functions_zooplankton_project.R"))
-
 source(here("scripts", "intraspecific_variation_functions.R"))
 
 
@@ -42,6 +42,9 @@ all_taxa_traits <- readRDS(here('data', 'processed_data', 'all_taxa_trait_info_p
 ### PROCESSING OF DATA ###
 ##########################
 
+#*** most processing done in zooplankton_data_processing_script.R
+
+#focal taxa
 focal_taxa <- c('b. longirostris',
                 'd. mendatoe',
                 'd. middenorfiana/pulex',
@@ -51,26 +54,31 @@ focal_taxa <- c('b. longirostris',
                 'h. gibberum',
                 'p. pediculus')
 
-#*** most processing done in zooplankton_data_processing_script.R
 
 ###  FISH PRESENCE/ABSENCE INFO FOR EACH LAKE ###
 fish_info <- lindsey_master_data %>% 
   select(lake, fish)
 
+#fix lake names in the fish presence/absence dataframe
 processed_lake_info <- fish_info[!duplicated(fish_info$lake),] %>%
   mutate(lake = recode(lake,
                        'lake37' = "lake_37",
                        'blackjoe' = "black_joe",
                        'upper_blackjoe' = "upper_black_joe",
-                       "below_tb" = "lake_below_tb")) #%>% 
-#select(!lake)
+                       "below_tb" = "lake_below_tb"))
 
 
-#remove euchlanis and filinia and move secies to a row name
+###  TRAIT DATA ###
+#remove euchlanis and filinia and move species to a row name
 all_taxa_traits_processed_init <- all_taxa_traits %>% 
   filter(!(species %in% c('euchlanis', 'filinia')) ) %>%
   column_to_rownames(var = 'species')
 
+
+###  ABUNDANCE DATA ###
+
+#
+count_dat_processed_list$length_dat_2018
 count_dat_processed_init <- count_dat_processed_list %>%
   bind_rows() %>% 
   filter(Lake != "Lost Lake") %>% #remove lost lake
@@ -284,7 +292,7 @@ intra_turnover_prop_results_treatmentmean_plot <- fish_info_anova$RelSumSq %>%
         panel.grid.minor = element_blank(),
         panel.grid.major.x = element_blank(),
         strip.background = element_rect(fill = "#d8d8d8", size = 1, color = "#d8d8d8"),
-        panel.border = element_rect(fill = NA, size = 1, color = "#d8d8d8"),
+        panel.border = element_rect(fill = NA, linewidth = 1, color = "#d8d8d8"),
         strip.text = element_text(size = 14, face = "plain", color = "black")) +
   theme(axis.title.x = element_blank())
 
@@ -319,7 +327,7 @@ trait_com_mean_mod_estimate_treatmentmean_plot <- confidence_intervals_fish %>%
               position = position_jitterdodge(dodge.width = 0.75,  jitter.width = 0.1),
               size = 2.25, alpha = 0.3) +
   geom_line(aes(x = fish_info, y = fit, group = outcome_var_final, color = outcome_var_final),
-            position = position_dodge(width = 0.75), size = 2) +
+            position = position_dodge(width = 0.75), linewidth = 2) +
   geom_errorbar(aes(x = fish_info, ymin = lwr, ymax = upr, color = outcome_var_final),
                 position = position_dodge(width = 0.75), width = 0.08, size = 2) +
   geom_point(aes(x = fish_info, y = fit, color = outcome_var_final),
@@ -346,10 +354,6 @@ length_mean_info_fish %>%
   ggplot() +
   geom_histogram(aes(x = sample_size), bins = 30) +
   theme_bw()
-
-
-
-
 
 # length_mean_info_fish_init %>%
 #   filter(!is.na(length_mm)) %>% 
@@ -394,9 +398,6 @@ mannu_results <- lapply(setNames(nm = taxa_inboth_treatments), function(x, dat) 
   mutate(factor = factor(taxa, levels = taxa_descending_order),
          results_text = paste0('W = ', W, '<br>P ', P))
 
-
-
-
 length_info_processed <- length_mean_info_fish %>% 
   #group_by(taxa) %>% 
   #filter(all(c('1', '0') %in% fish)) %>%
@@ -410,9 +411,6 @@ length_info_processed <- length_mean_info_fish %>%
                 `Fixed mean` = overall_mean_length) %>% 
   pivot_longer(cols = !taxa, names_to = 'mean_type', values_to = 'value') %>% 
   as.data.frame()
-
-
-
 
 
 species_level_shift_plot <- length_mean_info_fish_init %>%
@@ -463,148 +461,9 @@ species_level_shift_plot <- length_mean_info_fish_init %>%
         axis.title.y = element_blank()) +
   xlab('Length (mm)')
 
-
-
-
-
-
-
-# species_level_shift_plot <- length_mean_info_fish_init %>%
-#   filter(!is.na(length_mm)) %>% 
-#   group_by(taxa) %>% 
-#   filter(all(c('1', '0') %in% fish)) %>%
-#   ungroup() %>% 
-#   mutate(fish_info = factor(if_else(fish == '0', 'Fishless', 'Fish'), levels = c('Fishless', 'Fish')),
-#          taxa = factor(taxa, levels = taxa_descending_order)) %>% 
-#   ggplot(aes(y = taxa, x = length_mm, fill = fish_info, color = fish_info)) + #height = ..count..
-#   geom_density_ridges(stat = "density_ridges",
-#                       scale = 0.98, rel_min_height = .01, alpha = 0.5,
-#                       point_size = 0.5, size = 0.25, #point_shape = "|",
-#                       position = position_points_jitter(width = 0.03, height = 0.05, yoffset = -0.03) ) +
-#   geom_jitter(data = . %>% 
-#                 filter(fish_info == 'Fishless'),
-#               #aes(y = as.numeric(taxa) - 0.03),
-#               aes(y = as.numeric(taxa) - 0.03),
-#               size = 0.3, alpha = 0.7,
-#               position = position_jitterdodge(dodge.width = 0,
-#                                               jitter.width = 0.07,
-#                                               jitter.height = 0)) +
-#   geom_jitter(data = . %>% filter(fish_info == 'Fish'),
-#               aes(y = as.numeric(taxa) - 0.08),
-#               size = 0.3, alpha = 0.7,
-#               position = position_jitterdodge(dodge.width = 0,
-#                                               jitter.width = 0.07,
-#                                               jitter.height = 0)) +
-#   geom_point(data = length_info_processed %>% filter(mean_type == 'Fixed mean'),
-#              mapping = aes(y = as.numeric(taxa) + 0.02, x = value), size = 2.25, shape = 1, stroke = 1.4, color = '#495057', fill = '#495057') +
-#   geom_point(data = length_info_processed %>% filter(mean_type == 'Mean (fishless)'),
-#              mapping = aes(y = as.numeric(taxa) + 0.02, x = value), size = 2.25, shape = 1, stroke = 1.4, color = '#c1121f', fill = '#c1121f') +
-#   geom_point(data = length_info_processed %>% filter(mean_type == 'Mean (fish)'),
-#              mapping = aes(y = as.numeric(taxa) + 0.02, x = value), size = 2.25, shape = 1, stroke = 1.4, color = '#662e9b', fill = '#662e9b') +
-#   geom_textbox(
-#     data = mannu_results,
-#     aes(y = taxa, x = Inf, label = results_text),
-#     hjust = 1, halign = 0, size = 3,
-#     box.colour = NA, fill = NA, # Hide the box fill and outline
-#     box.padding = unit(rep(2.75, 4), "pt"), colour = "black",
-#     vjust = 1, nudge_y = 0.37, width = NULL
-#   )  +
-#   #annotate("text", x = 0, y = as.numeric(prac_df$taxa) + 0.5, label = prac_df$test) +
-#   theme_bw() +
-#   theme(panel.grid.major.x = element_blank(),
-#         panel.grid.minor.x = element_blank(),
-#         legend.title = element_blank(),
-#         axis.title.y = element_blank()) +
-#   xlab('Length (mm)')
-# 
 ggsave(plot = species_level_shift_plot,
        filename = here('figures', 'intraspecific_results', 'species_level_shift_plot.png'), 
        width = 10*0.7, height = 11*0.7, device = 'png')
-
-#ggsave(plot = species_level_shift_plot,
-#       filename = here('figures', 'intraspecific_results', 'species_level_shift_plot.pdf'), 
-#       width = 10*0.7, height = 11*0.7, device = 'pdf')
-
-
-### ROUGH EXAMPLE OF HOW TO MODIFY ABOVE PLOT TO ALLOW FOR FACETTING ACROSS MULTIPLE TRAITS
-# prac_df <- length_mean_info_fish_init %>%
-#   filter(!is.na(length_mm)) %>% 
-#   group_by(taxa) %>% 
-#   filter(all(c('1', '0') %in% fish)) %>%
-#   ungroup() %>% 
-#   mutate(fish_info = factor(if_else(fish == '0', 'Fishless', 'Fish'), levels = c('Fishless', 'Fish')),
-#          taxa = factor(taxa, levels = taxa_descending_order))
-# 
-# 
-# rbind(prac_df %>% mutate(trait = 'length1'),
-#       prac_df %>% mutate(trait = 'length2')) %>% 
-#   ggplot(aes(y = taxa, x = length_mm, fill = fish_info, color = fish_info)) + #height = ..count..
-#   geom_density_ridges(stat = "density_ridges",
-#                       scale = 0.98, rel_min_height = .01, alpha = 0.5,
-#                       point_size = 0.5, size = 0.25, #point_shape = "|",
-#                       position = position_points_jitter(width = 0.03, height = 0.05, yoffset = -0.03) ) +
-#   geom_jitter(data = . %>% 
-#                 filter(fish_info == 'Fishless'),
-#               #aes(y = as.numeric(taxa) - 0.03),
-#               aes(y = as.numeric(taxa) - 0.03),
-#               size = 0.3, alpha = 0.7,
-#               position = position_jitterdodge(dodge.width = 0,
-#                                               jitter.width = 0.07,
-#                                               jitter.height = 0)) +
-#   geom_jitter(data = . %>% filter(fish_info == 'Fish'),
-#               aes(y = as.numeric(taxa) - 0.08),
-#               size = 0.3, alpha = 0.7,
-#               position = position_jitterdodge(dodge.width = 0,
-#                                               jitter.width = 0.07,
-#                                               jitter.height = 0)) +
-#   geom_point(data = rbind(length_info_processed %>% mutate(trait = 'length1'),
-#                           length_info_processed %>% mutate(value = value/5, trait = 'length2')) %>%
-#                filter(mean_type == 'Fixed mean'),
-#              mapping = aes(y = as.numeric(taxa) + 0.02, x = value), size = 2.25, shape = 1, stroke = 1.4, color = '#495057', fill = '#495057') +
-#   #geom_point(data = length_info_processed %>% filter(mean_type == 'Mean (fishless)'),
-#   #           mapping = aes(y = as.numeric(taxa) + 0.02, x = value), size = 2.25, shape = 1, stroke = 1.4, color = '#c1121f', fill = '#c1121f') +
-#   #geom_point(data = length_info_processed %>% filter(mean_type == 'Mean (fish)'),
-#   #           mapping = aes(y = as.numeric(taxa) + 0.02, x = value), size = 2.25, shape = 1, stroke = 1.4, color = '#662e9b', fill = '#662e9b') +
-#   geom_textbox(
-#     data = rbind(mannu_results %>% mutate(trait = 'length1'),
-#                  mannu_results %>% mutate(trait = 'length2', results_text = paste(results_text, 'green') )),
-#     aes(y = taxa, x = Inf, label = results_text),
-#     hjust = 1, halign = 0, size = 3,
-#     box.colour = NA, fill = NA, # Hide the box fill and outline
-#     box.padding = unit(rep(2.75, 4), "pt"), colour = "black",
-#     vjust = 1, nudge_y = 0.37, width = NULL
-#   )  +
-#   #annotate("text", x = 0, y = as.numeric(prac_df$taxa) + 0.5, label = prac_df$test) +
-#   theme_bw() +
-#   theme(panel.grid.major.x = element_blank(),
-#         panel.grid.minor.x = element_blank(),
-#         legend.title = element_blank(),
-#         axis.title.y = element_blank()) +
-#   xlab('Length (mm)') +
-#   facet_wrap(~trait)
-
-
-
-
-
-
-
-
-
-
-
-
-
-# length_mean_info_fish_init %>%
-#   filter(!is.na(length_mm)) %>% 
-#   group_by(taxa) %>% 
-#   filter(all(c('1', '0') %in% fish)) %>% 
-#   mutate(fish_info = factor(if_else(fish == '0', 'Fishless', 'Fish'), levels = c('Fishless', 'Fish') )) %>% 
-#   ggplot(aes(y = taxa, x = length_mm, fill = fish_info, color = fish_info)) +
-#   geom_jitter(size = 0.3, alpha = 0.2, position = position_jitterdodge(jitter.width = 0.7)) +
-#   geom_violin(alpha = 0.6, position = position_dodge(width = 0.7), color = 'gray') +
-#   theme_bw()
-
 
 
 
@@ -692,7 +551,6 @@ count_dat_processed1_addzeros <- count_dat_processed1 %>%
   pivot_longer(!lake, names_to = 'taxa', values_to = 'rel_abund')
 
 
-
 #step 2: merge count data with fish info and then calculate average abundance within the fish
 #and fishless lakes
 combined_rel_abund_fishinfo <- left_join(count_dat_processed1_addzeros,
@@ -760,7 +618,6 @@ for (i in names(bootstrap_length_list)) {
               upper_ci = quantile(value, probs = c(0.975)))
   
   message('finished ', fish_label)
-  
 }
 
 
@@ -795,8 +652,6 @@ vardecomp_fish_vs_fishless <- full_join(observed_vardecomp_pivot, ci_vardecomp_d
 #        width = 15*0.7, height = 8*0.7, device = 'png')
 
 
-
-
 vardecomp_fish_vs_fishless_plot <- vardecomp_fish_vs_fishless %>%
   mutate(comparison_type = gsub("_.*", "", quantity)) %>% 
   filter(quantity %in% c('within_var', 'between_var')) %>% 
@@ -826,9 +681,6 @@ vardecomp_fish_vs_fishless_plot <- vardecomp_fish_vs_fishless %>%
 ggsave(plot = vardecomp_fish_vs_fishless_plot,
        filename = here('figures', 'intraspecific_results', 'vardecomp_fish_vs_fishless_plot.png'), 
        width = 15*0.7, height = 8*0.7, device = 'png')
-
-
-
 
 
 #ggsave(plot = vardecomp_fish_vs_fishless_plot,
@@ -910,8 +762,8 @@ ggsave(plot = vardecomp_fish_vs_fishless_plot,
 # 
 # length_processed
 # 
-
-
+#
+#
 # taxa_count_not_length <- unique(count_dat_processed1$taxa_lake)[!unique(count_dat_processed1$taxa_lake) %in% length_processed$taxa_lake]
 # unique(length_processed$taxa_lake)[!unique(length_processed$taxa_lake) %in% unique(count_dat_processed1$taxa_lake)]
 # 
@@ -941,11 +793,8 @@ ggsave(plot = vardecomp_fish_vs_fishless_plot,
 #   select(Lake, taxa, taxa_lake)
 #   
 # 
-# 
 # count_dat_processed1_subset <- count_dat_processed1 %>% 
 #   filter(!lake %in% problem_lakes)
-# 
-# 
 # 
 # 
 # count_length_processed1 <- left_join(count_dat_processed1_subset, 
@@ -968,11 +817,6 @@ ggsave(plot = vardecomp_fish_vs_fishless_plot,
 #                                      processed_lake_info,
 #                                      by = 'lake') %>% 
 #   mutate(fish = factor(fish))
-# 
-# 
-# 
-# 
-# 
 # 
 # unique(length_processed$taxa_lake)[!unique(length_processed$taxa_lake) %in% count_dat_processed1$taxa_lake]
 # unique(count_dat_processed1$taxa_lake)[unique(count_dat_processed1$taxa_lake) %in% length_processed$taxa_lake]
@@ -1092,16 +936,6 @@ ggsave(plot = vardecomp_fish_vs_fishless_plot,
 # trait.flex.anova(~fish, com_specific_length, overall_length, 
 #                  data = processed_mean_length_fish)
 # 
-# 
-# 
-# 
-# 
-# 
-# processed_mean_length_fish
-#   
-#   
-# 
-# 
 # length_processed %>% 
 #   group_by(taxa) %>% 
 #   mutate(overall_mean_length = mean(length_mm, na.rm = TRUE)) %>% 
@@ -1132,3 +966,125 @@ ggsave(plot = vardecomp_fish_vs_fishless_plot,
 # 
 # count_dat_processed1_subset
 
+
+#ggsave(plot = species_level_shift_plot,
+#       filename = here('figures', 'intraspecific_results', 'species_level_shift_plot.pdf'), 
+#       width = 10*0.7, height = 11*0.7, device = 'pdf')
+
+
+### ROUGH EXAMPLE OF HOW TO MODIFY ABOVE PLOT TO ALLOW FOR FACETTING ACROSS MULTIPLE TRAITS
+# prac_df <- length_mean_info_fish_init %>%
+#   filter(!is.na(length_mm)) %>% 
+#   group_by(taxa) %>% 
+#   filter(all(c('1', '0') %in% fish)) %>%
+#   ungroup() %>% 
+#   mutate(fish_info = factor(if_else(fish == '0', 'Fishless', 'Fish'), levels = c('Fishless', 'Fish')),
+#          taxa = factor(taxa, levels = taxa_descending_order))
+# 
+# 
+# rbind(prac_df %>% mutate(trait = 'length1'),
+#       prac_df %>% mutate(trait = 'length2')) %>% 
+#   ggplot(aes(y = taxa, x = length_mm, fill = fish_info, color = fish_info)) + #height = ..count..
+#   geom_density_ridges(stat = "density_ridges",
+#                       scale = 0.98, rel_min_height = .01, alpha = 0.5,
+#                       point_size = 0.5, size = 0.25, #point_shape = "|",
+#                       position = position_points_jitter(width = 0.03, height = 0.05, yoffset = -0.03) ) +
+#   geom_jitter(data = . %>% 
+#                 filter(fish_info == 'Fishless'),
+#               #aes(y = as.numeric(taxa) - 0.03),
+#               aes(y = as.numeric(taxa) - 0.03),
+#               size = 0.3, alpha = 0.7,
+#               position = position_jitterdodge(dodge.width = 0,
+#                                               jitter.width = 0.07,
+#                                               jitter.height = 0)) +
+#   geom_jitter(data = . %>% filter(fish_info == 'Fish'),
+#               aes(y = as.numeric(taxa) - 0.08),
+#               size = 0.3, alpha = 0.7,
+#               position = position_jitterdodge(dodge.width = 0,
+#                                               jitter.width = 0.07,
+#                                               jitter.height = 0)) +
+#   geom_point(data = rbind(length_info_processed %>% mutate(trait = 'length1'),
+#                           length_info_processed %>% mutate(value = value/5, trait = 'length2')) %>%
+#                filter(mean_type == 'Fixed mean'),
+#              mapping = aes(y = as.numeric(taxa) + 0.02, x = value), size = 2.25, shape = 1, stroke = 1.4, color = '#495057', fill = '#495057') +
+#   #geom_point(data = length_info_processed %>% filter(mean_type == 'Mean (fishless)'),
+#   #           mapping = aes(y = as.numeric(taxa) + 0.02, x = value), size = 2.25, shape = 1, stroke = 1.4, color = '#c1121f', fill = '#c1121f') +
+#   #geom_point(data = length_info_processed %>% filter(mean_type == 'Mean (fish)'),
+#   #           mapping = aes(y = as.numeric(taxa) + 0.02, x = value), size = 2.25, shape = 1, stroke = 1.4, color = '#662e9b', fill = '#662e9b') +
+#   geom_textbox(
+#     data = rbind(mannu_results %>% mutate(trait = 'length1'),
+#                  mannu_results %>% mutate(trait = 'length2', results_text = paste(results_text, 'green') )),
+#     aes(y = taxa, x = Inf, label = results_text),
+#     hjust = 1, halign = 0, size = 3,
+#     box.colour = NA, fill = NA, # Hide the box fill and outline
+#     box.padding = unit(rep(2.75, 4), "pt"), colour = "black",
+#     vjust = 1, nudge_y = 0.37, width = NULL
+#   )  +
+#   #annotate("text", x = 0, y = as.numeric(prac_df$taxa) + 0.5, label = prac_df$test) +
+#   theme_bw() +
+#   theme(panel.grid.major.x = element_blank(),
+#         panel.grid.minor.x = element_blank(),
+#         legend.title = element_blank(),
+#         axis.title.y = element_blank()) +
+#   xlab('Length (mm)') +
+#   facet_wrap(~trait)
+
+
+
+# length_mean_info_fish_init %>%
+#   filter(!is.na(length_mm)) %>% 
+#   group_by(taxa) %>% 
+#   filter(all(c('1', '0') %in% fish)) %>% 
+#   mutate(fish_info = factor(if_else(fish == '0', 'Fishless', 'Fish'), levels = c('Fishless', 'Fish') )) %>% 
+#   ggplot(aes(y = taxa, x = length_mm, fill = fish_info, color = fish_info)) +
+#   geom_jitter(size = 0.3, alpha = 0.2, position = position_jitterdodge(jitter.width = 0.7)) +
+#   geom_violin(alpha = 0.6, position = position_dodge(width = 0.7), color = 'gray') +
+#   theme_bw()
+
+# species_level_shift_plot <- length_mean_info_fish_init %>%
+#   filter(!is.na(length_mm)) %>% 
+#   group_by(taxa) %>% 
+#   filter(all(c('1', '0') %in% fish)) %>%
+#   ungroup() %>% 
+#   mutate(fish_info = factor(if_else(fish == '0', 'Fishless', 'Fish'), levels = c('Fishless', 'Fish')),
+#          taxa = factor(taxa, levels = taxa_descending_order)) %>% 
+#   ggplot(aes(y = taxa, x = length_mm, fill = fish_info, color = fish_info)) + #height = ..count..
+#   geom_density_ridges(stat = "density_ridges",
+#                       scale = 0.98, rel_min_height = .01, alpha = 0.5,
+#                       point_size = 0.5, size = 0.25, #point_shape = "|",
+#                       position = position_points_jitter(width = 0.03, height = 0.05, yoffset = -0.03) ) +
+#   geom_jitter(data = . %>% 
+#                 filter(fish_info == 'Fishless'),
+#               #aes(y = as.numeric(taxa) - 0.03),
+#               aes(y = as.numeric(taxa) - 0.03),
+#               size = 0.3, alpha = 0.7,
+#               position = position_jitterdodge(dodge.width = 0,
+#                                               jitter.width = 0.07,
+#                                               jitter.height = 0)) +
+#   geom_jitter(data = . %>% filter(fish_info == 'Fish'),
+#               aes(y = as.numeric(taxa) - 0.08),
+#               size = 0.3, alpha = 0.7,
+#               position = position_jitterdodge(dodge.width = 0,
+#                                               jitter.width = 0.07,
+#                                               jitter.height = 0)) +
+#   geom_point(data = length_info_processed %>% filter(mean_type == 'Fixed mean'),
+#              mapping = aes(y = as.numeric(taxa) + 0.02, x = value), size = 2.25, shape = 1, stroke = 1.4, color = '#495057', fill = '#495057') +
+#   geom_point(data = length_info_processed %>% filter(mean_type == 'Mean (fishless)'),
+#              mapping = aes(y = as.numeric(taxa) + 0.02, x = value), size = 2.25, shape = 1, stroke = 1.4, color = '#c1121f', fill = '#c1121f') +
+#   geom_point(data = length_info_processed %>% filter(mean_type == 'Mean (fish)'),
+#              mapping = aes(y = as.numeric(taxa) + 0.02, x = value), size = 2.25, shape = 1, stroke = 1.4, color = '#662e9b', fill = '#662e9b') +
+#   geom_textbox(
+#     data = mannu_results,
+#     aes(y = taxa, x = Inf, label = results_text),
+#     hjust = 1, halign = 0, size = 3,
+#     box.colour = NA, fill = NA, # Hide the box fill and outline
+#     box.padding = unit(rep(2.75, 4), "pt"), colour = "black",
+#     vjust = 1, nudge_y = 0.37, width = NULL
+#   )  +
+#   #annotate("text", x = 0, y = as.numeric(prac_df$taxa) + 0.5, label = prac_df$test) +
+#   theme_bw() +
+#   theme(panel.grid.major.x = element_blank(),
+#         panel.grid.minor.x = element_blank(),
+#         legend.title = element_blank(),
+#         axis.title.y = element_blank()) +
+#   xlab('Length (mm)')

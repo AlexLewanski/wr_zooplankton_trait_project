@@ -1,66 +1,47 @@
-######################################
-######################################
-### PROCESSING OF ZOOPLANKTON DATA ###
-######################################
-######################################
+#############################################
+#############################################
+### INTIAL PROCESSING OF ZOOPLANKTON DATA ###
+#############################################
+#############################################
 
 
 ##########################
 ### SCRIPT PREPARATION ###
 ##########################
 
-library(here)
-library(tidyverse)
-library(readxl)
+### PACKAGES ###
+library(here) #convenient input and output of files
+library(readxl) #reading in excel files
+library(tidyverse) #data processing functionality
 
 ### load data ###
 #the rest of the data (length, counts) are loaded and processed together further down in the script
-#egg_len_dat <- as.data.frame(read_excel(here('data', 'Zooplankton_eggs_and_length.xlsx'), sheet = 'Data'))
-#egg_len_dat <- as.data.frame(read_excel(here('data', 'Zooplankton_eggs_and_length_2_25_2022.xlsx'), sheet = 'Data'))
-egg_len_dat <- as.data.frame(read_excel(here('data', 'Zooplankton_eggs_and_length_3_29_2022.xlsx'), sheet = 'Data formatted for R'))
+egg_len_dat <- as.data.frame(read_excel(here('data', 'Zooplankton_eggs_and_length_3_29_2022.xlsx'), 
+                                        sheet = 'Data formatted for R'))
 
 rotifer_traits <- as.data.frame(read_excel(here('data', 'Rotifer_Measurements_and_Traits.xlsx'), na = "NA"))
-trait_info_init <- as.data.frame(read_excel(here('data', 'Zooplankton_eggs_and_length_5_9_2022.xlsx'), sheet = 'Inter Traits'))
+trait_info_init <- as.data.frame(read_excel(here('data', 'Zooplankton_eggs_and_length_5_9_2022.xlsx'), 
+                                            sheet = 'Inter Traits'))
 
 #COUNT DATA QUESTIONS
 # #keratella, keratella 2 spine, keratella 1 spine in 2018
 # #should d. middenorfiana/pulex and d. middenorfiana be treated separately or be lumped together?
-# #difference between immature and juveline?
+# #difference between immature and "juveline"?
 # 
 # #Cyclapoid vs Cyclopoid unident. --> from the same lake
 
 
-#######################
-### PROCESSING DATA ###
-#######################
+#############################
+### PROCESSING TRAIT DATA ###
+#############################
 
 ### new processing step on 3/29/2022 ###
-# rename to columns to convenient names ###
+# rename columns to convenient names ###
 egg_len_dat_processed <- egg_len_dat %>% 
   rename("size_mm" = "Size (mm)",
          "egg_count" = "Number of eggs") %>% 
   rename_with(.fn = tolower, .cols = everything()) %>% 
   mutate(contains_fish = ifelse(fish == 1, 'yes', 'no'))
-
-
-### 3/29/2022: THIS IS NOT LONGER NECESSARY WITH THE DATA REFORMATTING
-### Length at reproduction and egg count data ###
-#collected by Spencer Cruz
-#Spencer is going to restructure the data when he is collecting it so that it is in "tidy" format, 
-#so much of this processing may no longer be required for the egg count and length at reproduction data
-# egg_len_dat$id <- seq_len(nrow(egg_len_dat)) #add unique ID for each row
-# egg_len_dat$L_minutus_mm[egg_len_dat$L_minutus_mm == 's' & !is.na(egg_len_dat$L_minutus_mm)] <- NA
-# egg_len_dat$L_minutus_mm <- as.numeric(egg_len_dat$L_minutus_mm)
-# 
-# egg_len_dat_processed <- egg_len_dat %>%
-#   pivot_longer(cols = B_longirostris_mm:UnIdCyclopoid_eggs, names_to = 'species_trait', values_to = 'value', values_drop_na = TRUE) %>% 
-#   mutate(species = gsub("_[A-Za-z]*$", '', species_trait),
-#          trait = gsub("^[A-Za-z]*_*[A-Za-z]*_", '', species_trait),
-#          Fish = if_else(fish == 1, 'fish', 'fishless')) %>% 
-#   select(!c(species_trait, fish)) %>% 
-#   pivot_wider(names_from = trait, values_from = value) %>% 
-#   rename(reproduction_length = mm,
-#          egg_count = eggs)
 
 
 ### LENGTH DATA ###
@@ -116,10 +97,17 @@ for (YEAR in c(2018, 2019)) {
   
 }
 
+#length data processing (step 2)
+#action: bind 2018 and 2019 dataframes together, calculate mean length for each
+#taxa
+length_dat_processed <- zoop_length_total_list0 %>%
+  bind_rows() %>% 
+  group_by(taxa) %>% 
+  summarise(mean_length = mean(length_mm, na.rm = TRUE), .groups = 'drop')
 
 
-
-
+#process non-length trait information
+#actions: subset and then change column names
 trait_info <- trait_info_init %>% 
   select(Species, `Reproductive Mode`, `Body Shape`, `Feeding Type`) %>% 
   rename(species = Species,
@@ -127,11 +115,10 @@ trait_info <- trait_info_init %>%
          body_shape = `Body Shape`,
          feeding_type = `Feeding Type`)
 
-length_dat_processed <- zoop_length_total_list0 %>%
-  bind_rows() %>% 
-  group_by(taxa) %>% 
-  summarise(mean_length = mean(length_mm, na.rm = TRUE), .groups = 'drop')
 
+#trait info processing (step #3)
+#actions: remove NA rows, change taxa names, join length datframe with the
+#dataframe of other trait data, change taxa column to species column
 trait_info <- trait_info %>% 
   na.omit() %>% 
   mutate(taxa = case_when(species == 'B_longirostris' ~ 'b. longirostris',
@@ -148,6 +135,9 @@ trait_info <- trait_info %>%
   #column_to_rownames(var = "taxa")
 
 
+#process rotifer traits
+#actions: select and rename columns, calculate mean length for each species,
+#process species names
 rotifer_info <- rotifer_traits %>% 
   select(Species, `Reproductive Mode`, `Body Shape`, `Trophic Group`, `Feeding Type`, `Size(mm)`) %>% 
   rename(species = Species,
@@ -172,21 +162,25 @@ rotifer_info <- rotifer_traits %>%
                              species == "polyarthra" ~ "polyarthra",
                              species == "euchlanis" ~ "euchlanis"))
 
-
+#bind rotifer data with the df of trait data for the other taxa
 all_taxa_trait_info <- rbind(trait_info, rotifer_info)
 
-all_taxa_trait_info$species[!(all_taxa_trait_info$species %in% unique(c(count_dat_processed_list$length_dat_2018$taxa, count_dat_processed_list$length_dat_2019$taxa) ))]
-
-# count_dat_processed_list_name_update <- lapply(count_dat_processed_list, function(x) {
-#   x %>% 
-#     mutate(Lake = recode(Lake, "north_blue" = "n of blue"))
-# })
 
 
-### COUNT DATA ###
+#############################
+### PROCESSING COUNT DATA ###
+#############################
+
+### INFO ###
 #collected by Lindsey Boyle
 #The number of individuals for each taxa. Some of the taxa have more specific count information such as
 #counts by sex, counts of individuals with eggs, etc...
+
+#actions: 
+#   remove extra columns
+#   reshape data
+#   process taxa names (fix spelling issues, etc.)
+
 count_dat_processed_list <- list()
 
 for (YEAR in c(2018, 2019)) {
@@ -215,11 +209,12 @@ for (YEAR in c(2018, 2019)) {
       select(!taxa_counttype) %>% 
       pivot_wider(names_from = count_type, values_from = count, values_fill = 0) %>%
       rowwise() %>% 
+      #if total equals 0, check if if either m or f do not equal 0 and then add m + f together; otherwise just use the total value
       mutate(total = ifelse(total == 0, ifelse(m != 0 | f != 0, sum(m, f, na.rm = TRUE), sum(eggs, na.rm = TRUE)), total)) %>% 
       ungroup() %>% 
       as.data.frame()
     
-    #add immature column if doesnt exist (only one year identified immature/juvenile)
+    #add immature column if it doesn't exist (only one year identified immature/juvenile)
     if (!('immature' %in% colnames(count_dat_2)))
       count_dat_2 <- count_dat_2 %>% add_column(immature = 0, .after = "epiphia")
     
@@ -241,19 +236,50 @@ for (YEAR in c(2018, 2019)) {
   count_dat_processed_list[[paste0('length_dat_', YEAR)]] <- bind_rows(count_dat_processed_list_year, .id = 'Lake')
   count_dat_processed_list[[paste0('length_dat_', YEAR)]]$year <- YEAR
 }
-# prac_df <- data.frame(total = c(1, 0, 1, 0, 0, 2),
-#            a     = c(10, 2, 1, 0, 0, 2),
-#            b     = c(10, 3, 1, 0, 0, 2),
-#            c     = c(10, 2, 1, 100, NA, 2))
-# 
-# prac_df %>%
-#   rowwise() %>% 
-#   mutate(total = ifelse(total == 0, ifelse(a != 0 | b != 0, sum(a, b, na.rm = TRUE), sum(c, na.rm = TRUE)), total)) %>% 
-#   ungroup()
+
+
+
+#############################
+### OUTPUT PROCESSED DATA ###
+#############################
 
 saveRDS(all_taxa_trait_info, here('data', 'processed_data', 'all_taxa_trait_info_processed.rds') )
 saveRDS(count_dat_processed_list, here('data', 'processed_data', 'count_dat_processed_list.rds') )
 saveRDS(zoop_length_total_list0, here('data', 'processed_data', 'zoop_length_total_list0.rds') )
 
 
+
+#################################
+### CODE NOT CURRENTLY IN USE ###
+#################################
+
+#egg_len_dat <- as.data.frame(read_excel(here('data', 'Zooplankton_eggs_and_length.xlsx'), sheet = 'Data'))
+#egg_len_dat <- as.data.frame(read_excel(here('data', 'Zooplankton_eggs_and_length_2_25_2022.xlsx'), sheet = 'Data'))
+
+#all_taxa_trait_info$species[!(all_taxa_trait_info$species %in% unique(c(count_dat_processed_list$length_dat_2018$taxa, count_dat_processed_list$length_dat_2019$taxa) ))]
+
+# count_dat_processed_list_name_update <- lapply(count_dat_processed_list, function(x) {
+#   x %>% 
+#     mutate(Lake = recode(Lake, "north_blue" = "n of blue"))
+# })
+
+
+### 3/29/2022: THIS IS NOT LONGER NECESSARY WITH THE DATA REFORMATTING
+### Length at reproduction and egg count data ###
+#collected by Spencer Cruz
+#Spencer is going to restructure the data when he is collecting it so that it is in "tidy" format, 
+#so much of this processing may no longer be required for the egg count and length at reproduction data
+# egg_len_dat$id <- seq_len(nrow(egg_len_dat)) #add unique ID for each row
+# egg_len_dat$L_minutus_mm[egg_len_dat$L_minutus_mm == 's' & !is.na(egg_len_dat$L_minutus_mm)] <- NA
+# egg_len_dat$L_minutus_mm <- as.numeric(egg_len_dat$L_minutus_mm)
+# 
+# egg_len_dat_processed <- egg_len_dat %>%
+#   pivot_longer(cols = B_longirostris_mm:UnIdCyclopoid_eggs, names_to = 'species_trait', values_to = 'value', values_drop_na = TRUE) %>% 
+#   mutate(species = gsub("_[A-Za-z]*$", '', species_trait),
+#          trait = gsub("^[A-Za-z]*_*[A-Za-z]*_", '', species_trait),
+#          Fish = if_else(fish == 1, 'fish', 'fishless')) %>% 
+#   select(!c(species_trait, fish)) %>% 
+#   pivot_wider(names_from = trait, values_from = value) %>% 
+#   rename(reproduction_length = mm,
+#          egg_count = eggs)
 

@@ -33,8 +33,6 @@ library(tidyverse)
 library(gawdis)
 library(readxl)
 library(picante) #matrix randomization
-#library(PerformanceAnalytics)
-#library(ggcorrplot)
 library(MuMIn)
 library(GGally) #correlation plot
 library(lubridate) #handling times and dates
@@ -43,7 +41,11 @@ library(AICcmodavg) #model comparison
 library(performance) #used for vif calc (alternative is car package but vif func. doesn't work with glmmTMB)
 library(gstat) #semivariogram
 library(ape) #variogram
-library(DHARMa) #diangostics for mixed models
+library(DHARMa) #diagostics for mixed models
+
+#packages not current in use
+#library(PerformanceAnalytics)
+#library(ggcorrplot)
 #library(AER) #dispersion test for poisson glm
 
 
@@ -226,12 +228,7 @@ fd_ses_df_lake_wider %>%
 fd_ses_df_lake_wider %>% 
   select(temp, area, julian_date, time_convert, elev, fish) %>%
   mutate(fish = as.numeric(fish)) %>% 
-  cor.test(.x$fish, .x$temp)
-
-
-yos <- sample(1:30, 100, replace = TRUE)
-disease <- sample(0:1, 100, replace = TRUE)
-cor.test(yos, disease)
+  do(broom::tidy(cor.test(.$fish, .$temp)))
 
 
 
@@ -275,7 +272,7 @@ scatterplot_list$qDTM
 ### ADDITIONAL DATA EXPLORATION ###
 ###################################
 
-### how does date correspond to trip identity ###
+### how does date correspond to trip identity? ###
 fd_ses_df_lake_wider %>% 
   ggplot() +
   geom_histogram(aes(x = julian_date, fill = trip), 

@@ -32,16 +32,26 @@ source(here("scripts", "custom_functions_zooplankton_project.R"))
 
 ### LOADING DATA ###
 #(processed) count and length data
-count_dat_processed_list <- readRDS(file = here('data', 'processed_data', 'count_dat_processed_list.rds'))
-zoop_length_total_list0 <- readRDS(file = here('data', 'processed_data', 'zoop_length_total_list0.rds'))
+count_dat_processed_list <- readRDS(file = here('data', 
+                                                'processed_data', 
+                                                'count_dat_processed_list.rds'))
+
+zoop_length_total_list0 <- readRDS(file = here('data', 
+                                               'processed_data', 
+                                               'zoop_length_total_list0.rds'))
 
 #fish presence/absence info
-lindsey_master_data <- as.data.frame(read_excel(here('data', 'WR_data_ALL_Boyle.xlsx')))
+lindsey_master_data <- as.data.frame(read_excel(here('data', 
+                                                     'WR_data_ALL_Boyle.xlsx')))
 
 #trait data (not including length data)
-trait_info_init <- as.data.frame(read_excel(here('data', 'Zooplankton_eggs_and_length_5_9_2022.xlsx'), sheet = 'Inter Traits'))
+trait_info_init <- as.data.frame(read_excel(here('data', 
+                                                 'Zooplankton_eggs_and_length_5_9_2022.xlsx'), 
+                                            sheet = 'Inter Traits'))
 
-all_taxa_traits <- readRDS(here('data', 'processed_data', 'all_taxa_trait_info_processed.rds'))
+all_taxa_traits <- readRDS(here('data', 
+                                'processed_data', 
+                                'all_taxa_trait_info_processed.rds'))
 
 
 
@@ -110,7 +120,8 @@ all_taxa_traits_processed <- all_taxa_traits_processed_init %>%
 ### STEP 1: CALCULATE DISSIMILARITY MATRIX ###
 #de Bello et al.'s (2021) extension of Gower distance used for dissim. mat. construction
 zoo_dist <- dist_wrapper(df = all_taxa_traits_processed,
-                         method = c('dist', 'gowdis', 'gawdis')[3], arg_list = list(w.type = 'optimized', opti.maxiter = 500)) 
+                         method = c('dist', 'gowdis', 'gawdis')[3], 
+                         arg_list = list(w.type = 'optimized', opti.maxiter = 500)) 
 
 ### STEP 2: DETERMINE OPTIMAL FUNCTIONAL SPACE ###
 zoo_msd_calc <- eval_func_space(trait_data = zoo_dist,
@@ -198,7 +209,7 @@ for (i in seq_len(length(randomized_com_list))) {
   setTxtProgressBar(randomized_fd_calc_progress, i)
 }
 
-## also easy to do with lapply but not as easy to minor progress w/ a progress bar
+## also easy to do with lapply but not as easy to monitor progress w/ a progress bar
 # rand_calcs_list <- lapply(randomized_com_list, function(RANDOM_COM) {
 #   
 #   calc_fd_contr_inputdist(data = RANDOM_COM,
@@ -266,13 +277,15 @@ write.csv(fd_ses_df, file = here('results', 'alpha_ses_fd.csv'), row.names = FAL
 
 
 
+
 fd_ses_df_lake <- left_join(fd_ses_df, processed_lake_info, by = 'lake')  %>%
   #filter(lake != 'lost_lake') %>% 
   #select(!community) %>% 
   pivot_longer(cols = ends_with('ses'),
                names_to = "fd_metric", 
                values_to = "value") %>% 
-  mutate(fish = as.character(fish))
+  mutate(fish = as.character(fish)) %>% 
+  
 
 
 
@@ -282,7 +295,7 @@ fd_ses_df_lake <- left_join(fd_ses_df, processed_lake_info, by = 'lake')  %>%
 
 #library(ggsignif)
 
-fd_ses_df_lake %>%
+fd_ses_df_lake_plot <- fd_ses_df_lake %>%
   mutate(fish = if_else(fish == '1', 'fish', 'fishless'),
          metric = factor(recode(fd_metric,
                                 'fric_ses' = 'Richness',
@@ -309,7 +322,8 @@ fd_ses_df_lake %>%
         legend.title=element_blank(),
         legend.text = element_text(size = 15)) 
 
-ggsave(filename = here('figures', 'updated_multidim_FD_violin.png'), 
+ggsave(filename = here('figures', 'updated_multidim_FD_violin.png'),
+       plot = fd_ses_df_lake_plot,
        width = 13*0.8, height = 7*0.8)
 
 
@@ -346,6 +360,84 @@ alpha_ftd <- FTD.comm(tdmat = zoo_dist,
 
 write.csv(alpha_ftd, file = here('results', 'alpha_scheiner_metrics.csv'), row.names = FALSE)
 
+
+processed_scheiner_data_vis <- left_join(alpha_ftd, 
+                                         processed_lake_info, 
+                                         by = 'lake')  %>%
+  #select(!ccommunity) %>% 
+  filter(lake != 'lost_lake') %>% 
+  #select(!c(community, q) ) %>% 
+  pivot_longer(cols = !c(lake, fish),
+               names_to = "fd_metric", 
+               values_to = "value") %>% 
+  mutate(fish_info = factor(if_else(fish == 1, 'fish', 'fishless'), 
+                            levels = c('fishless', 'fish')) )  %>% 
+  #mutate(fish = as.character(fish)) %>% 
+  filter((fd_metric %in% c('nsp', 'M.prime', 'qEt', 'qDTM') ) ) %>%
+  mutate(fd_metric = factor(fd_metric, levels = c('nsp', 'M.prime', 'qEt', 'qDTM')),
+         fd_metric = recode(fd_metric, 'nsp' = 'Species richness') )
+
+ggplot(data = processed_scheiner_data_vis) +
+  geom_boxplot(aes(x = fd_metric, y = value, fill = fish_info),
+               alpha = 0.3, outlier.shape = NA, color = '#a6a6a6', lwd = 0.8) +
+  geom_point(aes(x = fd_metric, y = value, fill = fish_info, group = fish_info, color = fish_info),
+             size = 2,
+             position = position_jitterdodge(dodge.width = 0.75, jitter.width = 0.2, jitter.height = 0)) +
+  #geom_histogram(aes(x = value, fill = fish)) +
+  facet_wrap(vars(fd_metric), scales = "free") +
+  theme_bw() +
+  scale_fill_manual(values = c('#DC3220', '#005AB5')) +
+  scale_color_manual(values = c('#DC3220', '#005AB5')) +
+  theme(legend.title = element_blank()) +
+  xlab('Metric') + ylab('Value')
+
+ggsave(filename = here('figures', 'scheiner_fd_metrics_boxplot.png'), 
+       width = 13*0.8, height = 9*0.8)
+
+
+
+##################################
+### SUMMARY TABLE OF FD VALUES ###
+##################################
+
+fd_summary_table <- left_join(alpha_ftd, 
+          processed_lake_info, 
+          by = 'lake')  %>%
+  left_join(., 
+            fd_ses_df, 
+            by = 'lake') %>%
+  left_join(., 
+            fdcontr_calc$FD_dataframe %>% 
+              rename(lake = community) %>% 
+              select(!species_richness), 
+            by = 'lake') %>%
+  rename_with(~ gsub("_", " ", .x)) %>% 
+  group_by(fish) %>% 
+  select(-c(lake, q)) %>% 
+  summarise(across(everything(), 
+                   list(min = min, 
+                        max = max,
+                        mean = mean,
+                        sd = sd)
+  )
+  ) %>% 
+  pivot_longer(cols = !fish, 
+               names_to = c('metric', 'summary'),
+               names_sep = "_",
+               values_to = "value") %>% 
+  pivot_wider(names_from = metric, values_from = value) %>% 
+  mutate(fish = if_else(fish == 0, 'no', 'yes')) %>% 
+  rename_with(~ gsub(" ", "_", .x))
+
+write.csv(fd_summary_table, 
+          file = here('results', 'summary_info', 'fd_summary_table.csv'), 
+          row.names = FALSE)
+
+
+
+#################################
+### CODE NOT CURRENTLY IN USE ###
+#################################
 
 # prac_ftd_processed <- prac_ftd %>%
 #   mutate(lake = gsub(" ", "_", str_trim(tolower(community)))) %>%
@@ -425,41 +517,6 @@ write.csv(alpha_ftd, file = here('results', 'alpha_scheiner_metrics.csv'), row.n
 #   theme_bw()
 
 
-processed_scheiner_data_vis <- left_join(alpha_ftd %>% rename(lake = community), processed_lake_info, by = 'lake')  %>%
-  #select(!ccommunity) %>% 
-  filter(lake != 'lost_lake') %>% 
-  #select(!c(community, q) ) %>% 
-  pivot_longer(cols = !c(lake, fish),
-               names_to = "fd_metric", 
-               values_to = "value") %>% 
-  mutate(fish_info = factor(if_else(fish == 1, 'fish', 'fishless'), levels = c('fishless', 'fish')) )  %>% 
-  #mutate(fish = as.character(fish)) %>% 
-  filter((fd_metric %in% c('nsp', 'M.prime', 'qEt', 'qDTM') ) ) %>%
-  mutate(fd_metric = factor(fd_metric, levels = c('nsp', 'M.prime', 'qEt', 'qDTM')),
-         fd_metric = recode(fd_metric, 'nsp' = 'Species richness') )
-  
-ggplot(data = processed_scheiner_data_vis) +
-  geom_boxplot(aes(x = fd_metric, y = value, fill = fish_info),
-               alpha = 0.3, outlier.shape = NA, color = '#a6a6a6', lwd = 0.8) +
-  geom_point(aes(x = fd_metric, y = value, fill = fish_info, group = fish_info, color = fish_info),
-             size = 2,
-             position = position_jitterdodge(dodge.width = 0.75, jitter.width = 0.2, jitter.height = 0)) +
-  #geom_histogram(aes(x = value, fill = fish)) +
-  facet_wrap(vars(fd_metric), scales = "free") +
-  theme_bw() +
-  scale_fill_manual(values = c('#DC3220', '#005AB5')) +
-  scale_color_manual(values = c('#DC3220', '#005AB5')) +
-  theme(legend.title = element_blank()) +
-  xlab('Metric') + ylab('Value')
-
-ggsave(filename = here('figures', 'scheiner_fd_metrics_boxplot.png'), 
-       width = 13*0.8, height = 9*0.8)
-
-
-
-
-
-
 # left_join(alpha_ftd %>% rename(lake = community), processed_lake_info, by = 'lake')  %>%
 #   #select(!ccommunity) %>% 
 #   filter(lake != 'lost_lake') %>% 
@@ -483,9 +540,6 @@ ggsave(filename = here('figures', 'scheiner_fd_metrics_boxplot.png'),
 
 # ggsave(filename = here('figures', 'updated_multidim_FD_violin.png'), 
 #        width = 13*0.8, height = 7*0.8)
-
-
-
 
 
 
@@ -769,35 +823,30 @@ ggsave(filename = here('figures', 'scheiner_fd_metrics_boxplot.png'),
 #  
 
 
-
-
-
-prac_ftd <- FTD.comm(tdmat = zoo_dist, 
-                     spmat = count_dat_processed %>% 
-                       column_to_rownames(var = 'taxa') %>% 
-                       t(), 
-                     q = 1, abund = FALSE, 
-                     match.names = TRUE)$com.FTD %>%
-  mutate(lake = gsub(" ", "_", str_trim(tolower(community)))) %>%
-  mutate(lake = recode(lake, 
-                       'annika_lake' = 'annika',
-                       "bear_west" = "west_bear",
-                       "east_no_name" = "east_noname",
-                       "frozen_lake_1" = "frozen1",
-                       "frozen_lake_2" = "frozen2",
-                       "island_lake" = 'island',
-                       "lindsey_lake" = "lindsey",
-                       "little_mountain_sheep" = "little_mtnsheep",
-                       "low_deep_creek" = "lower_deepcreek",
-                       "lower_indian_basin" = "lower_indian",
-                       "mid_deep_creek" = "mid_deepcreek",
-                       "mid_indian_basin" = "mid_indian",
-                       "n_of_blue" = "north_blue",
-                       "no_name_west" = "west_noname",
-                       "upper_indian_basin" = "upper_indian",
-                       "west_of_mt_lester" = "west_mtlester"))
-
-
+# prac_ftd <- FTD.comm(tdmat = zoo_dist, 
+#                      spmat = count_dat_processed %>% 
+#                        column_to_rownames(var = 'taxa') %>% 
+#                        t(), 
+#                      q = 1, abund = FALSE, 
+#                      match.names = TRUE)$com.FTD %>%
+#   mutate(lake = gsub(" ", "_", str_trim(tolower(community)))) %>%
+#   mutate(lake = recode(lake, 
+#                        'annika_lake' = 'annika',
+#                        "bear_west" = "west_bear",
+#                        "east_no_name" = "east_noname",
+#                        "frozen_lake_1" = "frozen1",
+#                        "frozen_lake_2" = "frozen2",
+#                        "island_lake" = 'island',
+#                        "lindsey_lake" = "lindsey",
+#                        "little_mountain_sheep" = "little_mtnsheep",
+#                        "low_deep_creek" = "lower_deepcreek",
+#                        "lower_indian_basin" = "lower_indian",
+#                        "mid_deep_creek" = "mid_deepcreek",
+#                        "mid_indian_basin" = "mid_indian",
+#                        "n_of_blue" = "north_blue",
+#                        "no_name_west" = "west_noname",
+#                        "upper_indian_basin" = "upper_indian",
+#                        "west_of_mt_lester" = "west_mtlester"))
 
 #+
   #geom_signif(stat="identity",

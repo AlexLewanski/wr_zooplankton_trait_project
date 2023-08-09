@@ -284,7 +284,7 @@ fd_ses_df_lake <- left_join(fd_ses_df, processed_lake_info, by = 'lake')  %>%
   pivot_longer(cols = ends_with('ses'),
                names_to = "fd_metric", 
                values_to = "value") %>% 
-  mutate(fish = as.character(fish)) %>% 
+  mutate(fish = as.character(fish)) 
   
 
 
@@ -429,7 +429,10 @@ fd_summary_table <- left_join(alpha_ftd,
   mutate(fish = if_else(fish == 0, 'no', 'yes')) %>% 
   rename_with(~ gsub(" ", "_", .x))
 
-write.csv(fd_summary_table, 
+
+write.csv(fd_summary_table %>% 
+            mutate(across(where(is.numeric), function(x) format(x, digits=2, nsmall=2))) %>% 
+            as.data.frame(), 
           file = here('results', 'summary_info', 'fd_summary_table.csv'), 
           row.names = FALSE)
 

@@ -181,12 +181,8 @@ for (i in seq_len(nrow(pairwise_lake_combos))) {
   setTxtProgressBar(beta_progress, i) #update progress bar
 }
 
+
 pairwise_beta_df <- bind_rows(pairwise_beta_list, .id = 'lake')
-
-write.csv(x = pairwise_beta_df,
-          file = here('results', 'pairwise_beta_fd_scheiner.csv'), row.names = FALSE)
-
-
 
 count_dat_processed_beta_comdist <- count_dat_processed_beta %>% 
   column_to_rownames(var = 'lake') %>% 
@@ -211,26 +207,16 @@ zooplankton_weighted_mean_df <- do.call(rbind, zooplankton_weighted_mean_list) %
 
 zooplankton_weighted_mean_dist <- dist(zooplankton_weighted_mean_df)
 
+### PERFORM PERMANOVA ANALYSES ###
+# DO THE FISH AND FISHLESS LAKES CLUSTER IN DIFFERENT PLACES IN FUNCTONAL SPACE?
 
+#load the beta results if they don't exist yet
+if (!exists('pairwise_beta_df'))
+  pairwise_beta_df <- read.csv(here('results', 'pairwise_beta_fd_scheiner.csv'))
 
-
-pairwise_beta_df <- read.csv(here('results', 'pairwise_beta_fd_scheiner.csv'))
-
-
+#convert dataframe of distances to a matrix
 dist_qdtm_beta <- df2dist_update(as.data.frame(pairwise_beta_df[, c('lake1', 'lake2', "qDTM.beta")]) )
-
 dist_qdtm_beta_reorder <- reorder_dist(dist_mat = dist_qdtm_beta, new_order = processed_lake_info$lake)
-
-
-qdtm.div <- adonis2(dist_qdtm_beta_reorder ~ fish, 
-                    data = processed_lake_info %>% mutate(fish = as.character(fish)), 
-                    permutations = 9999)
-
-
-qdtm_beta_pco <- dudi.pco(quasieuclid(dist_qdtm_beta_reorder), scannf = FALSE, full = TRUE)
-
-weighted_com_dist_pco <- dudi.pco(quasieuclid(zooplankton_weighted_mean_dist), scannf = FALSE, full = TRUE)
-
 
 beta_dist_list <- list(qdtm = dist_qdtm_beta,
                        weighted_mean = zooplankton_weighted_mean_dist)
@@ -261,12 +247,10 @@ multidim_analyses <- lapply(beta_dist_list, function(x, lake_info) {
 
 
 #how similar are the two beta diversity measures?
-mantel.rtest(multidim_analyses$qdtm$reorded_dist,
-             multidim_analyses$weighted_mean$reorded_dist)
+mantel_beta <- mantel.rtest(multidim_analyses$qdtm$reorded_dist,
+                            multidim_analyses$weighted_mean$reorded_dist)
 
-
-
-
+#permanova results
 multidim_analyses$qdtm$permanova
 multidim_analyses$weighted_mean$permanova
 
@@ -276,6 +260,68 @@ multidim_analyses$qdtm$permdisp_sig
 multidim_analyses$weighted_mean$permdisp
 multidim_analyses$weighted_mean$permdisp_sig
 
+
+### VISUALIZE BETA DISTANCE ###
+qdtm_beta_pco <- dudi.pco(quasieuclid(dist_qdtm_beta_reorder), scannf = FALSE, full = TRUE)
+weighted_com_dist_pco <- dudi.pco(quasieuclid(zooplankton_weighted_mean_dist), scannf = FALSE, full = TRUE)
+
+beta_div_pcoa <- rbind(qdtm_beta_pco$li[1:4] %>% 
+        mutate(beta_type = 'qDTM beta') %>% 
+        rownames_to_column(var = 'lake'),
+      weighted_com_dist_pco$li %>% 
+        mutate(beta_type = 'Weighted mean distance') %>% 
+        rownames_to_column(var = 'lake')) %>%
+  left_join(., 
+            processed_lake_info %>% mutate(fish = as.character(fish)), by = 'lake') %>%
+  mutate(fish_info = if_else(fish == '1', 'fish', 'fishless')) %>% 
+  ggplot() +
+  geom_point(aes(x = A1, y = A2, color = fish_info), size = 5, alpha = 0.7) +
+  scale_color_manual(values = c('#0A9396', '#BB3E03')) +
+  #xlab(paste0('PC1 (', round((weighted_com_dist_pco$eig/sum(weighted_com_dist_pco$eig))*100, 2)[1], '%)') ) + 
+  #ylab(paste0('PC2 (', round((weighted_com_dist_pco$eig/sum(weighted_com_dist_pco$eig))*100, 2)[2], '%)') ) + 
+  xlab('PC1') + ylab('PC2') +
+  theme_bw() +
+  theme(legend.title = element_blank(),
+        axis.title = element_text(size = 15)) +
+  facet_wrap(~beta_type, scales = 'free')
+
+
+### EXPORTING RESULTS ###
+#combine scheiner and weighted means into a single dataframe
+beta_output_df <- as.data.frame(as.matrix(zooplankton_weighted_mean_dist)) %>% 
+  rownames_to_column(var = 'lake1') %>% 
+  pivot_longer(cols = !lake1, 
+               names_to = 'lake2', 
+               values_to = 'weighted_mean') %>% 
+  rowwise() %>% 
+  mutate(lake_sort = paste0(sort(c(lake1, lake2)), collapse = '_') ) %>% 
+  ungroup() %>% 
+  filter(lake1 != lake2) %>% 
+  left_join(., pairwise_beta_df %>% 
+              rowwise() %>% 
+              mutate(lake_sort = paste0(sort(c(lake1, lake2)), collapse = '_')) %>% 
+              ungroup()
+  ) %>% 
+  select(!c(lake_sort, lake))
+
+write.csv(x = beta_output_df,
+          file = here('results', 'pairwise_beta_fd_scheiner.csv'), 
+          row.names = FALSE)
+
+ggsave(filename = here('figures', 'beta_div_pcoa_fig.png'), 
+       plot = beta_div_pcoa,
+       width = 13*0.65, height = 6*0.65, bg = 'white')
+
+
+
+#################################
+### CODE NOT CURRENTLY IN USE ###
+#################################
+
+# #permanova
+# qdtm.div <- adonis2(dist_qdtm_beta_reorder ~ fish, 
+#                     data = processed_lake_info %>% mutate(fish = as.character(fish)), 
+#                     permutations = 9999)
 
 # qdtm_beta_pco$li %>% 
 #   select(1:5) %>% 
@@ -312,35 +358,6 @@ multidim_analyses$weighted_mean$permdisp_sig
 #         axis.title = element_text(size = 15))
 
 
-
-beta_div_pcoa <- rbind(qdtm_beta_pco$li[1:4] %>% 
-        mutate(beta_type = 'qDTM beta') %>% 
-        rownames_to_column(var = 'lake'),
-      weighted_com_dist_pco$li %>% 
-        mutate(beta_type = 'Weighted mean distance') %>% 
-        rownames_to_column(var = 'lake')) %>%
-  left_join(., 
-            processed_lake_info %>% mutate(fish = as.character(fish)), by = 'lake') %>%
-  mutate(fish_info = if_else(fish == '1', 'fish', 'fishless')) %>% 
-  ggplot() +
-  geom_point(aes(x = A1, y = A2, color = fish_info), size = 5, alpha = 0.7) +
-  scale_color_manual(values = c('#0A9396', '#BB3E03')) +
-  #xlab(paste0('PC1 (', round((weighted_com_dist_pco$eig/sum(weighted_com_dist_pco$eig))*100, 2)[1], '%)') ) + 
-  #ylab(paste0('PC2 (', round((weighted_com_dist_pco$eig/sum(weighted_com_dist_pco$eig))*100, 2)[2], '%)') ) + 
-  xlab('PC1') + ylab('PC2') +
-  theme_bw() +
-  theme(legend.title = element_blank(),
-        axis.title = element_text(size = 15)) +
-  facet_wrap(~beta_type, scales = 'free')
-
-ggsave(filename = here('figures', 'beta_div_pcoa_fig.png'), 
-       plot = beta_div_pcoa,
-       width = 13*0.65, height = 6*0.65, bg = 'white')
-
-
-
-
-# 
 # processed_lake_info1 <- processed_lake_info %>% 
 #   mutate(fish_info = if_else(fish == 1, 'fish', 'fishless')) %>% 
 #   select(lake, fish_info)
@@ -427,12 +444,6 @@ ggsave(filename = here('figures', 'beta_div_pcoa_fig.png'),
 # fish_fishless_df <- bind_rows(fish_fishless_list)
 # 
 # fish_fishless_df <- rbind(fish_fishless_list$fish[sample(1:nrow(fish_fishless_list$fishless)),], fish_fishless_list$fishless)
-# 
-# 
-# 
-# 
-# 
-# 
 # 
 # 
 # observed_beta_list <- list()

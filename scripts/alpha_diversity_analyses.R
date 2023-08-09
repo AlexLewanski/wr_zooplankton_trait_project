@@ -42,11 +42,13 @@ library(performance) #used for vif calc (alternative is car package but vif func
 library(gstat) #semivariogram
 library(ape) #variogram
 library(DHARMa) #diagostics for mixed models
+library(AER) #dispersion test for poisson glm
+#library(openxlsx)
 
 #packages not current in use
 #library(PerformanceAnalytics)
 #library(ggcorrplot)
-#library(AER) #dispersion test for poisson glm
+
 
 
 ### custom functions
@@ -210,9 +212,9 @@ fd_ses_df_lake_wider %>%
 #        upper = list(continuous = wrap("cor", method = "spearman"))) +
 #  theme_bw()
 
-fd_ses_df_lake_wider %>% 
-  select(temp, area, julian_date, time_convert, elev, fish) %>%
-  mutate(fish = as.numeric(fish))
+# fd_ses_df_lake_wider %>% 
+#   select(temp, area, julian_date, time_convert, elev, fish) %>%
+#   mutate(fish = as.numeric(fish))
 
 fd_ses_df_lake_wider %>% 
   select(temp, area, julian_date, time_convert, elev, fish) %>%
@@ -281,9 +283,9 @@ fd_ses_df_lake_wider %>%
 
 
 
-############################################################################
-### MODEL FITTING 1: (generalized) linear models with date as predictor  ###
-############################################################################
+#########################################################################################################
+### MODEL FITTING 1: (generalized) linear models with date, temp, area, time, and fish as predictors  ###
+#########################################################################################################
 
 ### STEP 1. FIT MODELS ####
 predictor_vec <- setNames(c('fric_ses', 'fdis_ses', 'fdiv_ses', 'feve_ses', 'M.prime', 'qEt', 'nsp', 'qDTM'), 
@@ -345,26 +347,26 @@ glm_diagnostics(mod_list = mod_rename_list_glm,
                 plot_height = 8,
                 show_progress = TRUE)
 
-#https://stats.stackexchange.com/questions/70558/diagnostic-plots-for-count-regression
-#https://stats.stackexchange.com/questions/66586/is-there-a-test-to-determine-whether-glm-overdispersion-is-significant/66593#66593
-glm_dispersion_test_df <- lapply(setNames(nm = names(mod_rename_list_glm$nsp)), function(x, mod_list) {
-  dispersion_test <- dispersiontest(mod_list[[x]])
-  
-  return(data.frame(statistic = glm_dispersion_list$`intercept + area`$statistic,
-                    p = glm_dispersion_list$`intercept + area`$p.value,
-                    estimate = glm_dispersion_list$`intercept + area`$estimate,
-                    null_value = glm_dispersion_list$`intercept + area`$null.value,
-                    alternative = glm_dispersion_list$`intercept + area`$alternative,
-                    method = glm_dispersion_list$`intercept + area`$method)
-         )
-}, mod_list = mod_rename_list_glm$nsp) %>% 
-  bind_rows(.id = 'model')
+# #https://stats.stackexchange.com/questions/70558/diagnostic-plots-for-count-regression
+# #https://stats.stackexchange.com/questions/66586/is-there-a-test-to-determine-whether-glm-overdispersion-is-significant/66593#66593
+# glm_dispersion_test_df <- lapply(setNames(nm = names(mod_rename_list_glm$nsp)), function(x, mod_list) {
+#   dispersion_test <- dispersiontest(mod_list[[x]])
+#   
+#   return(data.frame(statistic = glm_dispersion_list$`intercept + area`$statistic,
+#                     p = glm_dispersion_list$`intercept + area`$p.value,
+#                     estimate = glm_dispersion_list$`intercept + area`$estimate,
+#                     null_value = glm_dispersion_list$`intercept + area`$null.value,
+#                     alternative = glm_dispersion_list$`intercept + area`$alternative,
+#                     method = glm_dispersion_list$`intercept + area`$method)
+#          )
+# }, mod_list = mod_rename_list_glm$nsp) %>% 
+#   bind_rows(.id = 'model')
 
 
 ### 3. CHECKING FOR EVIDENCE OF SPATIAL AUTOCOR IN EACH MODEL ###
 glm_sp_autocor_list <- list()
 for (i in c('moran', 'variogram')) {
-  glm_sp_autocor_list[[i]] <- lapply(mod_rename_list_mixed, function(FD, data, i) {
+  glm_sp_autocor_list[[i]] <- lapply(mod_rename_list_glm, function(FD, data, i) {
     lapply(FD, function(model_object, data, i) {
       eval_spatial_autocor(data = data, 
                            mod = model_object, 
@@ -636,8 +638,6 @@ ggsave(scheiner_alpha_plot,
        width = 13*0.8, height = 7*0.8)
 
 
-  
-
 mod_rename_list_mixed <- list()
 for (FD in names(alpha_fd_mods_mixed)) {
   for (x in names(alpha_fd_mods_mixed[[FD]][["top_mods"]])) {
@@ -649,7 +649,22 @@ for (FD in names(alpha_fd_mods_mixed)) {
 
 selection_table_list_mixed <- lapply(mod_rename_list_mixed, function(x) aictab(cand.set = x) )
 
+mixed_mod_selection <- lapply(names(selection_table_list_mixed), function(x, dat) {
+  return(
+    dat[[x]] %>% 
+      as.data.frame() %>% 
+      mutate(response = x) %>% 
+      relocate(response)
+  )
+}, dat = selection_table_list_mixed) %>% 
+  do.call(rbind, .) %>% 
+  select(response, Modnames, K, AICc, Delta_AICc) %>% 
+  rename(predictor = Modnames)
 
+write.csv(mixed_mod_selection, 
+          here('results', 'summary_info', 'mixed_mod_selection.csv'),
+          quote = FALSE,
+          row.names = TRUE)
 
 
 

@@ -1,0 +1,13 @@
+component,component2,proportion_variance
+fish,Turnover,0.510427956152874
+fish,Intraspec.,0.018312835431147
+fish,Covariation,0.193363731454318
+fish,Total,0.722104523038339
+Residuals,Turnover,0.322277943553279
+Residuals,Intraspec.,0.02335071275401
+Residuals,Covariation,-0.0677331793456285
+Residuals,Total,0.277895476961661
+Total,Turnover,0.832705899706153
+Total,Intraspec.,0.041663548185157
+Total,Covariation,0.12563055210869
+Total,Total,1

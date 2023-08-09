@@ -44,7 +44,7 @@ all_taxa_traits <- readRDS(here('data', 'processed_data', 'all_taxa_trait_info_p
 
 #*** most processing done in zooplankton_data_processing_script.R
 
-#focal taxa
+#focal taxa included in analyses
 focal_taxa <- c('b. longirostris',
                 'd. mendatoe',
                 'd. middenorfiana/pulex',
@@ -77,12 +77,10 @@ all_taxa_traits_processed_init <- all_taxa_traits %>%
 
 ###  ABUNDANCE DATA ###
 
-#
-count_dat_processed_list$length_dat_2018
 count_dat_processed_init <- count_dat_processed_list %>%
   bind_rows() %>% 
   filter(Lake != "Lost Lake") %>% #remove lost lake
-  mutate(Lake = dplyr::recode(Lake, "N of Blue" = "North Blue")) %>%
+  mutate(Lake = dplyr::recode(Lake, "N of Blue" = "North Blue")) %>% #fix lake name
   group_by(Lake) %>% 
   filter(year == max(year)) %>% #keep only the most recent survey
   ungroup() %>% 
@@ -225,7 +223,7 @@ count_dat_processed1 <- count_dat_processed_init %>%
 taxa_count_not_length <- unique(count_dat_processed1$taxa_lake)[!unique(count_dat_processed1$taxa_lake) %in% length_processed$taxa_lake]
 unique(length_processed$taxa_lake)[!unique(length_processed$taxa_lake) %in% unique(count_dat_processed1$taxa_lake)]
 
-#lakes wi
+#lakes with count data but no length data (remove these)
 problem_lakes <- unique(gsub('.*SPACE', '', taxa_count_not_length))
 count_dat_processed1_subset <- count_dat_processed1 %>% 
   filter(!lake %in% problem_lakes)
@@ -240,6 +238,7 @@ count_dat_processed1_subset <- count_dat_processed1 %>%
 length_mean_info_fish_init <- left_join(length_processed, processed_lake_info, by = 'lake') %>% 
   mutate(fish = as.character(fish))
 
+#size of each taxa in the fish vs. fishless lakes
 length_mean_info_fish <- length_mean_info_fish_init %>% 
   group_by(taxa) %>% 
   mutate(overall_mean_length = mean(length_mm, na.rm = TRUE)) %>%
@@ -251,7 +250,7 @@ length_mean_info_fish <- length_mean_info_fish_init %>%
             .groups = 'drop') %>% 
   mutate(taxa_fish = paste(taxa, fish, sep = "_"))
 
-# community level means
+# community level (i.e., lake level) means of zooplankton length
 processed_mean_length_fish <- left_join(count_dat_processed1_subset, processed_lake_info, by = 'lake') %>% 
   mutate(taxa_fish = paste(taxa, fish, sep = "_")) %>%
   left_join(., length_mean_info_fish, by = 'taxa_fish') %>% 
@@ -261,16 +260,17 @@ processed_mean_length_fish <- left_join(count_dat_processed1_subset, processed_l
             fish = as.factor(first(fish.x)),
             .groups = 'drop')
 
+#trait flex anova based on zooplankton community length
 fish_info_anova <- trait.flex.anova(~fish, com_specific_length, overall_length, 
                                     data = processed_mean_length_fish)
 
-
-intra_turnover_prop_results_treatmentmean_plot <- fish_info_anova$RelSumSq %>% 
+fish_info_anova_processed <- fish_info_anova$RelSumSq %>% 
   as.data.frame() %>% 
   rownames_to_column(var = 'component') %>%
   mutate(component = trimws(component)) %>%
-  pivot_longer(cols = !component, names_to = 'component2', values_to = 'proportion_variance') %>% 
-  #filter(component2 != 'Covariation') %>%
+  pivot_longer(cols = !component, names_to = 'component2', values_to = 'proportion_variance')
+
+intra_turnover_prop_results_treatmentmean_plot <- fish_info_anova_processed
   mutate(percentage_variance = proportion_variance*100,
          trait = 'length',
          component_processed = factor(case_when(component == 'fish' ~ 'Fish presence',
@@ -291,13 +291,20 @@ intra_turnover_prop_results_treatmentmean_plot <- fish_info_anova$RelSumSq %>%
   theme(legend.title = element_blank(),
         panel.grid.minor = element_blank(),
         panel.grid.major.x = element_blank(),
-        strip.background = element_rect(fill = "#d8d8d8", size = 1, color = "#d8d8d8"),
+        strip.background = element_rect(fill = "#d8d8d8", linewidth = 1, color = "#d8d8d8"),
         panel.border = element_rect(fill = NA, linewidth = 1, color = "#d8d8d8"),
         strip.text = element_text(size = 14, face = "plain", color = "black")) +
   theme(axis.title.x = element_blank())
 
+write.csv(fish_info_anova_processed, 
+          here('results', 'summary_info', 'fish_info_anova_processed.csv'),
+          quote = FALSE,
+          row.names = FALSE)
+  
 ggsave(plot = intra_turnover_prop_results_treatmentmean_plot,
-       filename = here('figures', 'intraspecific_results', 'intra_turnover_prop_results_treatmentmean_plot.png'), 
+       filename = here('figures', 
+                       'intraspecific_results', 
+                       'intra_turnover_prop_results_treatmentmean_plot.png'), 
        width = 15*0.7, height = 8*0.7, device = 'png')
 
 #ggsave(plot = intra_turnover_prop_results_treatmentmean_plot,
@@ -329,7 +336,7 @@ trait_com_mean_mod_estimate_treatmentmean_plot <- confidence_intervals_fish %>%
   geom_line(aes(x = fish_info, y = fit, group = outcome_var_final, color = outcome_var_final),
             position = position_dodge(width = 0.75), linewidth = 2) +
   geom_errorbar(aes(x = fish_info, ymin = lwr, ymax = upr, color = outcome_var_final),
-                position = position_dodge(width = 0.75), width = 0.08, size = 2) +
+                position = position_dodge(width = 0.75), width = 0.08, linewidth = 2) +
   geom_point(aes(x = fish_info, y = fit, color = outcome_var_final),
              position = position_dodge(width = 0.75),
              size = 7) +
@@ -346,27 +353,7 @@ ggsave(plot = trait_com_mean_mod_estimate_treatmentmean_plot,
 #       filename = here('figures', 'intraspecific_results', 'trait_com_mean_mod_estimate_treatmentmean.pdf'), 
 #       width = 11*0.7, height = 8*0.7, device = 'pdf')
 
-
-#exploration of sample sizes underlying mean values
-length_mean_info_fish$sample_size
-
-length_mean_info_fish %>% 
-  ggplot() +
-  geom_histogram(aes(x = sample_size), bins = 30) +
-  theme_bw()
-
-# length_mean_info_fish_init %>%
-#   filter(!is.na(length_mm)) %>% 
-#   group_by(taxa) %>% 
-#   filter(all(c('1', '0') %in% fish)) %>% 
-#   ggplot(aes(y = taxa, x = length_mm, fill = fish)) +
-#   geom_density_ridges(
-#     #jittered_points = TRUE, position = "raincloud",
-#     #alpha = 0.7, scale = 0.9
-#     stat = "binline", alpha = 0.5
-#   ) +
-#   theme_bw()
-
+#filter dataset to only the taxa found in both fish and fishless lakes
 taxa_inboth_treatments <- length_mean_info_fish_init %>%
   filter(!is.na(length_mm)) %>% 
   group_by(taxa) %>% 
@@ -375,6 +362,7 @@ taxa_inboth_treatments <- length_mean_info_fish_init %>%
   pull(taxa) %>% 
   unique()
 
+#order taxa names in descending order (as a vector)
 taxa_descending_order <- length_mean_info_fish_init %>% 
   filter(!is.na(length_mm)) %>%
   group_by(taxa) %>% 
@@ -383,6 +371,7 @@ taxa_descending_order <- length_mean_info_fish_init %>%
   arrange(desc(mean_val)) %>% 
   pull(taxa)
 
+#conduct Mann–Whitney U test on length data for fish vs. fishless lakes
 mannu_results <- lapply(setNames(nm = taxa_inboth_treatments), function(x, dat) {
   mannu_output <- wilcox.test(length_mm ~ fish, 
               data = dat %>% filter(taxa == x), 
@@ -398,6 +387,7 @@ mannu_results <- lapply(setNames(nm = taxa_inboth_treatments), function(x, dat) 
   mutate(factor = factor(taxa, levels = taxa_descending_order),
          results_text = paste0('W = ', W, '<br>P ', P))
 
+#calculate mean length of fishless and fish lakes and the overall mean
 length_info_processed <- length_mean_info_fish %>% 
   #group_by(taxa) %>% 
   #filter(all(c('1', '0') %in% fish)) %>%
@@ -412,7 +402,7 @@ length_info_processed <- length_mean_info_fish %>%
   pivot_longer(cols = !taxa, names_to = 'mean_type', values_to = 'value') %>% 
   as.data.frame()
 
-
+#plot of intraspecific lengths
 species_level_shift_plot <- length_mean_info_fish_init %>%
   filter(!is.na(length_mm)) %>% 
   #group_by(taxa) %>% 
@@ -460,6 +450,7 @@ species_level_shift_plot <- length_mean_info_fish_init %>%
         legend.title = element_blank(),
         axis.title.y = element_blank()) +
   xlab('Length (mm)')
+
 
 ggsave(plot = species_level_shift_plot,
        filename = here('figures', 'intraspecific_results', 'species_level_shift_plot.png'), 
@@ -540,6 +531,8 @@ count_length_processed1_lake %>%
 
 #goal: calculate proportion of variance in trait values explained by within vs. between
 #species components (and their covariation)
+
+#important paper: https://besjournals.onlinelibrary.wiley.com/doi/full/10.1111/j.2041-210X.2010.00071.x
 
 #As a first attempt, I am quantifying the proportion within the fish vs. fishless lakes and
 #I am using the average relative abundances for each species across lakes in these calculations
@@ -629,29 +622,6 @@ ci_vardecomp_df <- ci_vardecomp_list %>%
 observed_vardecomp_pivot <- pivot_longer(observed_vardecomp, cols = !fish_info, names_to = 'quantity', values_to = 'observed')
 vardecomp_fish_vs_fishless <- full_join(observed_vardecomp_pivot, ci_vardecomp_df, by = c('fish_info', 'quantity'))
 
-
-#visualize results
-# vardecomp_fish_vs_fishless_plot <- vardecomp_fish_vs_fishless %>%
-#   filter(quantity %in% c('within_var_prop', 'between_var_prop')) %>% 
-#   mutate(quantity1 = factor(if_else(quantity == 'within_var_prop', 'within species', 'between species'), levels = c('within species', 'between species'))) %>% 
-#   ggplot() +
-#   geom_bar(aes(x = fish_info, y = observed, fill = quantity1), stat = 'identity', position = 'stack') +
-#   geom_errorbar(data = . %>% filter(quantity1 == 'between species'), #geom_linerange
-#     mapping = aes(x = fish_info, ymin = lower_ci, ymax = upper_ci),
-#                 width = 0.1) +
-#   geom_point(data = . %>% filter(quantity1 == 'between species'),
-#                 mapping = aes(x = fish_info, y = observed), size = 4) +
-#   ylim(0, 1) +
-#   ylab('Variance') +
-#   theme_bw() +
-#   theme(legend.title = element_blank(),
-#         axis.title.x = element_blank())
-# 
-# ggsave(plot = vardecomp_fish_vs_fishless_plot,
-#        filename = here('figures', 'intraspecific_results', 'vardecomp_fish_vs_fishless_plot.png'), 
-#        width = 15*0.7, height = 8*0.7, device = 'png')
-
-
 vardecomp_fish_vs_fishless_plot <- vardecomp_fish_vs_fishless %>%
   mutate(comparison_type = gsub("_.*", "", quantity)) %>% 
   filter(quantity %in% c('within_var', 'between_var')) %>% 
@@ -678,31 +648,42 @@ vardecomp_fish_vs_fishless_plot <- vardecomp_fish_vs_fishless %>%
   theme(legend.title = element_blank(),
         axis.title.x = element_blank())
 
+write.csv(vardecomp_fish_vs_fishless, 
+          here('results', 'summary_info', 'vardecomp_fish_vs_fishless.csv'),
+          quote = FALSE,
+          row.names = FALSE)
+
 ggsave(plot = vardecomp_fish_vs_fishless_plot,
        filename = here('figures', 'intraspecific_results', 'vardecomp_fish_vs_fishless_plot.png'), 
        width = 15*0.7, height = 8*0.7, device = 'png')
-
-
-#ggsave(plot = vardecomp_fish_vs_fishless_plot,
-#       filename = here('figures', 'intraspecific_results', 'vardecomp_fish_vs_fishless_plot.pdf'), 
-#       width = 15*0.7, height = 8*0.7, device = 'pdf')
-
-
-
-# vardecomp_fish_vs_fishless %>% 
-#   filter(quantity %in% c('between_var_prop', 'within_var_prop')) %>% 
-#   ggplot() +
-#   geom_bar(aes(x = fish_info, y = observed, fill = quantity), stat = 'identity', position = position_dodge()) +
-#   geom_errorbar(aes(x = fish_info, ymin = lower_ci, ymax = upper_ci, group = quantity),
-#                 width = 0.2, position = position_dodge()) +
-#   ylim(0, 1) +
-#   theme_bw()
 
 
 
 #################################
 ### CODE NOT CURRENTLY IN USE ###
 #################################
+
+#visualize results
+# vardecomp_fish_vs_fishless_plot <- vardecomp_fish_vs_fishless %>%
+#   filter(quantity %in% c('within_var_prop', 'between_var_prop')) %>% 
+#   mutate(quantity1 = factor(if_else(quantity == 'within_var_prop', 'within species', 'between species'), levels = c('within species', 'between species'))) %>% 
+#   ggplot() +
+#   geom_bar(aes(x = fish_info, y = observed, fill = quantity1), stat = 'identity', position = 'stack') +
+#   geom_errorbar(data = . %>% filter(quantity1 == 'between species'), #geom_linerange
+#     mapping = aes(x = fish_info, ymin = lower_ci, ymax = upper_ci),
+#                 width = 0.1) +
+#   geom_point(data = . %>% filter(quantity1 == 'between species'),
+#                 mapping = aes(x = fish_info, y = observed), size = 4) +
+#   ylim(0, 1) +
+#   ylab('Variance') +
+#   theme_bw() +
+#   theme(legend.title = element_blank(),
+#         axis.title.x = element_blank())
+# 
+# ggsave(plot = vardecomp_fish_vs_fishless_plot,
+#        filename = here('figures', 'intraspecific_results', 'vardecomp_fish_vs_fishless_plot.png'), 
+#        width = 15*0.7, height = 8*0.7, device = 'png')
+
 
 # confint(aov(com_specific_length ~ fish, data = processed_mean_length_fish),
 #         level = 0.95) %>% 
@@ -1088,3 +1069,18 @@ ggsave(plot = vardecomp_fish_vs_fishless_plot,
 #         legend.title = element_blank(),
 #         axis.title.y = element_blank()) +
 #   xlab('Length (mm)')
+
+#ggsave(plot = vardecomp_fish_vs_fishless_plot,
+#       filename = here('figures', 'intraspecific_results', 'vardecomp_fish_vs_fishless_plot.pdf'), 
+#       width = 15*0.7, height = 8*0.7, device = 'pdf')
+
+
+# vardecomp_fish_vs_fishless %>% 
+#   filter(quantity %in% c('between_var_prop', 'within_var_prop')) %>% 
+#   ggplot() +
+#   geom_bar(aes(x = fish_info, y = observed, fill = quantity), stat = 'identity', position = position_dodge()) +
+#   geom_errorbar(aes(x = fish_info, ymin = lower_ci, ymax = upper_ci, group = quantity),
+#                 width = 0.2, position = position_dodge()) +
+#   ylim(0, 1) +
+#   theme_bw()
+

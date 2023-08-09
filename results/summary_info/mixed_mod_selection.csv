@@ -1,0 +1,129 @@
+,response,predictor,K,AICc,Delta_AICc
+1,FRic,intercept + fish1,4,249.405671277474,0
+2,FRic,intercept + area_std + fish1,5,251.539301146693,2.13362986921899
+3,FRic,intercept + fish1 + time_convert_std,5,251.638765957067,2.23309467959331
+4,FRic,intercept + fish1 + temp_std,5,251.656378351951,2.25070707447711
+5,FRic,intercept + area_std + fish1 + time_convert_std,6,253.819748624183,4.41407734670966
+6,FRic,intercept + area_std + fish1 + temp_std,6,253.848372184081,4.44270090660703
+7,FRic,intercept + fish1 + temp_std + time_convert_std,6,253.947987264731,4.54231598725721
+8,FRic,intercept + area_std + fish1 + temp_std + time_convert_std,7,256.185952604027,6.78028132655322
+9,FRic,intercept,3,257.282277963687,7.87660668621373
+10,FRic,intercept + temp_std,4,257.56021126339,8.15453998591641
+11,FRic,intercept + area_std,4,258.894365494438,9.48869421696497
+12,FRic,intercept + area_std + temp_std,5,259.318197799069,9.91252652159557
+13,FRic,intercept + time_convert_std,4,259.341791108384,9.93611983091029
+14,FRic,intercept + temp_std + time_convert_std,5,259.38393159343,9.97826031595611
+15,FRic,intercept + area_std + time_convert_std,5,260.992631421637,11.5869601441635
+16,FRic,intercept + area_std + temp_std + time_convert_std,6,261.176893224084,11.7712219466108
+17,FDis,intercept + fish1,4,220.235611656704,0
+18,FDis,intercept + fish1 + time_convert_std,5,222.448776837932,2.21316518122813
+19,FDis,intercept + fish1 + temp_std,5,222.478803391667,2.24319173496377
+20,FDis,intercept + area_std + fish1,5,222.479138668221,2.24352701151716
+21,FDis,intercept + fish1 + temp_std + time_convert_std,6,224.73714901847,4.50153736176611
+22,FDis,intercept + area_std + fish1 + time_convert_std,6,224.746166221224,4.51055456452079
+23,FDis,intercept + area_std + fish1 + temp_std,6,224.777449972457,4.54183831575344
+24,FDis,intercept + area_std + fish1 + temp_std + time_convert_std,7,227.090494696023,6.85488303931947
+25,FDis,intercept,3,231.799149273414,11.5635376167104
+26,FDis,intercept + area_std,4,232.699401142071,12.4637894853675
+27,FDis,intercept + temp_std,4,233.149834136355,12.9142224796513
+28,FDis,intercept + time_convert_std,4,233.910400593746,13.6747889370429
+29,FDis,intercept + area_std + temp_std,5,234.179796843098,13.9441851863942
+30,FDis,intercept + area_std + time_convert_std,5,234.857373938327,14.6217622816236
+31,FDis,intercept + temp_std + time_convert_std,5,235.195312771586,14.959701114882
+32,FDis,intercept + area_std + temp_std + time_convert_std,6,236.276684053891,16.0410723971878
+33,FDiv,intercept,3,216.070255349098,0
+34,FDiv,intercept + fish1,4,217.80780613748,1.73755078838195
+35,FDiv,intercept + time_convert_std,4,218.061479571333,1.99122422223439
+36,FDiv,intercept + temp_std,4,218.168137619808,2.09788227070956
+37,FDiv,intercept + area_std,4,218.246866887934,2.1766115388354
+38,FDiv,intercept + area_std + fish1,5,219.883394447108,3.81313909801011
+39,FDiv,intercept + fish1 + time_convert_std,5,219.942858841109,3.87260349201119
+40,FDiv,intercept + fish1 + temp_std,5,220.051411501921,3.98115615282251
+41,FDiv,intercept + temp_std + time_convert_std,5,220.171891582577,4.10163623347921
+42,FDiv,intercept + area_std + time_convert_std,5,220.298989141889,4.22873379279096
+43,FDiv,intercept + area_std + temp_std,5,220.391732723028,4.32147737393015
+44,FDiv,intercept + area_std + fish1 + time_convert_std,6,222.107111987841,6.03685663874259
+45,FDiv,intercept + area_std + fish1 + temp_std,6,222.186926887018,6.11667153791956
+46,FDiv,intercept + fish1 + temp_std + time_convert_std,6,222.224770919532,6.15451557043349
+47,FDiv,intercept + area_std + temp_std + time_convert_std,6,222.459236496707,6.38898114760852
+48,FDiv,intercept + area_std + fish1 + temp_std + time_convert_std,7,224.456534146728,8.38627879762964
+49,FEve,intercept + fish1 + temp_std,5,253.605262295083,0
+50,FEve,intercept + area_std + fish1 + temp_std,6,255.393552939326,1.78829064424232
+51,FEve,intercept + fish1 + temp_std + time_convert_std,6,255.85475672659,2.24949443150717
+52,FEve,intercept + area_std + fish1 + temp_std + time_convert_std,7,257.67188610751,4.06662381242668
+53,FEve,intercept + area_std + temp_std,5,257.95388482211,4.34862252702672
+54,FEve,intercept + temp_std,4,258.057600083971,4.45233778888772
+55,FEve,intercept + fish1,4,259.27653082471,5.67126852962642
+56,FEve,intercept + area_std + temp_std + time_convert_std,6,259.731520430413,6.12625813532955
+57,FEve,intercept + temp_std + time_convert_std,5,259.797408589381,6.19214629429749
+58,FEve,intercept + area_std + fish1,5,261.253612139918,7.648349844835
+59,FEve,intercept + fish1 + time_convert_std,5,261.401339640265,7.79607734518189
+60,FEve,intercept + area_std + fish1 + time_convert_std,6,263.455208419234,9.84994612415116
+61,FEve,intercept + area_std,4,267.875334971967,14.270072676884
+62,FEve,intercept,3,268.162402813732,14.5571405186492
+63,FEve,intercept + area_std + time_convert_std,5,270.114960254055,16.5096979589721
+64,FEve,intercept + time_convert_std,4,270.351123269175,16.7458609740915
+65,M.prime,intercept + fish1,4,-68.6699984809488,0
+66,M.prime,intercept + area_std + fish1,5,-66.6849891974072,1.98500928354161
+67,M.prime,intercept + fish1 + temp_std,5,-66.4925299286757,2.17746855227307
+68,M.prime,intercept + fish1 + time_convert_std,5,-66.4177490467625,2.25224943418627
+69,M.prime,intercept + area_std + fish1 + temp_std,6,-64.4357252173257,4.23427326362312
+70,M.prime,intercept + area_std + fish1 + time_convert_std,6,-64.3789589794444,4.2910395015044
+71,M.prime,intercept + fish1 + temp_std + time_convert_std,6,-64.1843632755701,4.48563520537866
+72,M.prime,intercept + area_std + fish1 + temp_std + time_convert_std,7,-62.0680176247492,6.60198085619957
+73,M.prime,intercept,3,-54.9502722294532,13.7197262514956
+74,M.prime,intercept + temp_std,4,-54.5010470990139,14.1689513819349
+75,M.prime,intercept + area_std,4,-53.4945012916798,15.175497189269
+76,M.prime,intercept + time_convert_std,4,-52.9895530168201,15.6804454641287
+77,M.prime,intercept + area_std + temp_std,5,-52.9102939321123,15.7597045488365
+78,M.prime,intercept + temp_std + time_convert_std,5,-52.7696467651692,15.9003517157795
+79,M.prime,intercept + area_std + time_convert_std,5,-51.489251676267,17.1807468046817
+80,M.prime,intercept + area_std + temp_std + time_convert_std,6,-51.1288638298985,17.5411346510503
+81,qEt,intercept + area_std + temp_std,5,-104.942841432874,0
+82,qEt,intercept + area_std + fish1 + temp_std,6,-102.684614729674,2.25822670319916
+83,qEt,intercept + area_std + temp_std + time_convert_std,6,-102.66940462832,2.27343680455348
+84,qEt,intercept + temp_std,4,-102.604617387744,2.33822404512939
+85,qEt,intercept + fish1 + temp_std,5,-101.199779807261,3.74306162561221
+86,qEt,intercept + temp_std + time_convert_std,5,-100.410561738757,4.53227969411635
+87,qEt,intercept + area_std + fish1 + temp_std + time_convert_std,7,-100.374415440676,4.56842599219729
+88,qEt,intercept + fish1 + temp_std + time_convert_std,6,-99.0738662021889,5.86897523068468
+89,qEt,intercept + area_std,4,-98.3427660967055,6.6000753361681
+90,qEt,intercept + area_std + fish1,5,-97.1711017503979,7.77173968247563
+91,qEt,intercept + area_std + time_convert_std,5,-96.4930155075073,8.44982592536628
+92,qEt,intercept + fish1,4,-96.4375631431593,8.50527828971428
+93,qEt,intercept,3,-95.7154486178261,9.22739281504742
+94,qEt,intercept + area_std + fish1 + time_convert_std,6,-95.5027748713634,9.44006656151021
+95,qEt,intercept + fish1 + time_convert_std,5,-95.0965488225045,9.8462926103691
+96,qEt,intercept + time_convert_std,4,-93.9489918076837,10.9938496251899
+97,nsp,intercept + area_std + temp_std,5,299.899354727974,0
+98,nsp,intercept + area_std,4,301.669542520186,1.7701877922122
+99,nsp,intercept + area_std + temp_std + time_convert_std,6,302.131364522312,2.23200979433756
+100,nsp,intercept + area_std + fish1 + temp_std,6,302.138844675439,2.23948994746496
+101,nsp,intercept + area_std + fish1,5,303.048661950471,3.14930722249699
+102,nsp,intercept + area_std + time_convert_std,5,303.92137091331,4.02201618533616
+103,nsp,intercept + area_std + fish1 + temp_std + time_convert_std,7,304.456768405501,4.55741367752711
+104,nsp,intercept + area_std + fish1 + time_convert_std,6,305.324948719187,5.42559399121268
+105,nsp,intercept + fish1,4,314.399709900189,14.5003551722143
+106,nsp,intercept + fish1 + temp_std,5,314.6206675493,14.7213128213256
+107,nsp,intercept + temp_std,4,314.975196252839,15.0758415248648
+108,nsp,intercept + fish1 + time_convert_std,5,316.430859970203,16.5315052422284
+109,nsp,intercept + fish1 + temp_std + time_convert_std,6,316.904873946585,17.0055192186107
+110,nsp,intercept,3,316.956616657595,17.0572619296206
+111,nsp,intercept + temp_std + time_convert_std,5,317.19301407643,17.2936593484556
+112,nsp,intercept + time_convert_std,4,319.135293883066,19.2359391550916
+113,qDTM,intercept + fish1,4,196.402838932073,0
+114,qDTM,intercept + area_std + fish1,5,197.323895125291,0.921056193218135
+115,qDTM,intercept + fish1 + temp_std,5,197.686453840667,1.28361490859373
+116,qDTM,intercept + fish1 + time_convert_std,5,198.372937066021,1.97009813394774
+117,qDTM,intercept + area_std + fish1 + temp_std,6,198.77794146239,2.37510253031647
+118,qDTM,intercept + area_std + fish1 + time_convert_std,6,199.266718222557,2.86387929048414
+119,qDTM,intercept + fish1 + temp_std + time_convert_std,6,199.88558856932,3.48274963724671
+120,qDTM,intercept + temp_std,4,200.815835159726,4.41299622765285
+121,qDTM,intercept + area_std + fish1 + temp_std + time_convert_std,7,200.972188505937,4.56934957386403
+122,qDTM,intercept,3,201.359770044956,4.95693111288284
+123,qDTM,intercept + area_std + temp_std,5,203.022328745722,6.61948981364833
+124,qDTM,intercept + temp_std + time_convert_std,5,203.054396583783,6.65155765170968
+125,qDTM,intercept + time_convert_std,4,203.534655798498,7.1318168664246
+126,qDTM,intercept + area_std,4,203.538515713579,7.13567678150613
+127,qDTM,intercept + area_std + temp_std + time_convert_std,6,205.317305466206,8.91446653413303
+128,qDTM,intercept + area_std + time_convert_std,5,205.767288412312,9.36444948023905

@@ -9,12 +9,12 @@
 
 
 ## Author information
-Name| Contact
+Name (ORCID iD)| Contact
 :-----:|:-----
-Alex Lewanski|[allewanski AT gmail.com](mailto:allewanski@gmail.com)
 Spencer Cruz|[scruz6 AT uwyo.edu](mailto:scruz6@uwyo.edu)
-Lindsey Boyle |
-Catherine Wagner|
+[Alex Lewanski](https://orcid.org/0000-0001-5843-0837)|[allewanski AT gmail.com](mailto:allewanski@gmail.com)
+[Lindsey Boyle](https://orcid.org/0009-0007-8825-5700) |
+[Catherine Wagner](https://orcid.org/0000-0001-8585-6120)|
 Amy Krist|
 
 ## Overview

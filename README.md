@@ -1,16 +1,14 @@
 # Repository: *Introduced trout alter the trait composition of alpine zooplankton communities*
 
 ## Table of Contents
-- [Author](#author)
+- [Author information](#author-information)
 - [Overview](#overview)
 - [Contents](#contents)
 - [Contents details](#contents-details)
 - [Script workflow summary](#script-workflow-summary)
-  - [data](#data)
-  - [results](#results)
-  - [scripts](#scripts)
 
-## Author
+
+## Author information
 Name| Contact
 :-----:|:-----
 Alex Lewanski|[allewanski AT gmail.com](mailto:allewanski@gmail.com)
@@ -34,7 +32,7 @@ wr_zooplankton_trait_project
     `-- summary_info
 ```
 
-## Content details
+## Contents details
 ### `data`
 The main data associated with the project. This currently only contains processed versions of the data (original, raw data are inaccessible).
 
@@ -55,7 +53,7 @@ The scripts for analysis, processing, and generation of the figures and tables. 
 
 
 ## Script workflow summary
-All scripts use the [here](https://here.r-lib.org) package for import and export of file. The best way to run these scripts will be to install and load the here package and place a .here file into top level project directory (or one of the other ways of flagging the top level). For further details, visit the package's [vignette](https://cran.r-project.org/web/packages/here/vignettes/here.html).
+All scripts use the [here](https://here.r-lib.org) package for import and export of files. The best way to run these scripts is to install and load the here package and place a .here file into top level project directory (or one of the other ways of flagging the top level). For further details, visit the package's [vignette](https://cran.r-project.org/web/packages/here/vignettes/here.html).
 
 
 ```

@@ -4,7 +4,7 @@
 - [Author](#author)
 - [Overview](#overview)
 - [Contents](#contents)
-- [Contents](#contents)
+- [Contents details](#contents-details)
 - [Script workflow summary](#script-workflow-summary)
   - [data](#data)
   - [results](#results)
@@ -29,12 +29,35 @@ wr_zooplankton_trait_project
 |   `-- processed_data
 |-- scripts
 |-- figures
-|-- results
-|   |-- mod_diagnostics
-|   `-- summary_info
+`-- results
+    |-- mod_diagnostics
+    `-- summary_info
 ```
 
+## Content details
+### `data`
+The main data associated with the project. This currently only contains processed versions of the data (original, raw data are inaccessible).
+
+#### `processed_data`
+The processed versions of the data. These are stored as .rds files, which can be imported into R using the `readRDS()` function.
+
+### `results`
+The results from the project's analyses including metric calculations, outputs of statistical analyses, etc.
+
+#### `mod_diagnostics`
+Files containing diagnostic plots for the generalized linear and mixed effects models.
+
+#### `summary_info`
+Summary and results information for the analyses.
+
+### `scripts`
+The scripts for analysis, processing, and generation of the figures and tables. Details on how these script fit into the broader workflow of the project are detailed in the [Script workflow summary](#script-workflow-summary) section.
+
+
 ## Script workflow summary
+All scripts use the [here](https://here.r-lib.org) package for import and export of file. The best way to run these scripts will be to install and load the here package and place a .here file into top level project directory (or one of the other ways of flagging the top level). For further details, visit the package's [vignette](https://cran.r-project.org/web/packages/here/vignettes/here.html).
+
+
 ```
 `zooplankton_data_processing_script.R`
 | action: initial processing of trait and count data
@@ -123,12 +146,3 @@ wr_zooplankton_trait_project
 ```
 
 
-## Content details
-### `data`
-The main data associated with the project.
-
-### `results`
-The results from the project's analyses including metric calculations, outputs of statistical analyses, etc.
-
-### `scripts`
-The scripts for analysis, processing, and generation of the figures and tables. All scripts in this directory were used on my local computer.

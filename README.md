@@ -15,7 +15,7 @@ Spencer Cruz|[scruz6 AT uwyo.edu](mailto:scruz6@uwyo.edu)
 [Alex Lewanski](https://orcid.org/0000-0001-5843-0837)|[allewanski AT gmail.com](mailto:allewanski@gmail.com)
 [Lindsey Boyle](https://orcid.org/0009-0007-8825-5700) |
 [Catherine Wagner](https://orcid.org/0000-0001-8585-6120)|
-Amy Krist|
+[Amy Krist](https://orcid.org/0000-0001-5370-988X)|
 
 ## Overview
 The `wr_zooplankton_trait_project` repo is associated with the following manuscript: *Introduced trout alter the trait composition of alpine zooplankton communities*. Further details will be added upon acceptance of the manuscript.

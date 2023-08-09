@@ -51,18 +51,18 @@ wr_zooplankton_trait_project
 |     | action: calculate the species-level alpha functional diversity calculations
 |     | notes: script requires custom functions from the following script: `custom_functions_zooplankton_project.R`
 |     | input: count_dat_processed_list.rds (processed count data)
-|	  |        zoop_length_total_list0.rds (processed length data)
-|	  |        WR_data_ALL_Boyle.xlsx (dataframe of fish presence/absence info for each lake)
+|     |        zoop_length_total_list0.rds (processed length data)
+|     |        WR_data_ALL_Boyle.xlsx (dataframe of fish presence/absence info for each lake)
 |     |        Zooplankton_eggs_and_length_5_9_2022.xlsx ("Inter Traits" sheet)
 |     |        all_taxa_trait_info_processed.rds (processed dataframe of species-level trait data for zooplankton taxa)
 |     | outputs:
-|	  |  TABULAR DATA:
-|	  |     alpha_ses_fd.csv (standardized effect sizes of FRic, FDis, FDiv, and FEve for each lake)
-|	  |     alpha_scheiner_metrics.csv (Scheiner metric values for each lake)
-|	  |     fd_summary_table.csv [summaries of all functional diversity metrics (in the `summary_info` directory)]
+|     |  TABULAR DATA:
+|     |     alpha_ses_fd.csv (standardized effect sizes of FRic, FDis, FDiv, and FEve for each lake)
+|     |     alpha_scheiner_metrics.csv (Scheiner metric values for each lake)
+|     |     fd_summary_table.csv [summaries of all functional diversity metrics (in the `summary_info` directory)]
 |     |  PLOTS:
-|	  |     updated_multidim_FD_violin.png (violin plot of FRic, FDis, FDiv, and FEve in fish vs. fishless lakes)
-|	  |     scheiner_fd_metrics_boxplot.png (violin plot of Scheiner metrics in fish vs. fishless lakes)
+|     |     updated_multidim_FD_violin.png (violin plot of FRic, FDis, FDiv, and FEve in fish vs. fishless lakes)
+|     |     scheiner_fd_metrics_boxplot.png (violin plot of Scheiner metrics in fish vs. fishless lakes)
 |     |    
 |     `--> `alpha_diversity_analyses.R`
 |            actions: conducts some initial data exploration (e.g. outliers, collinearity, homogeneity of variance, etc.)

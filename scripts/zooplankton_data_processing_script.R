@@ -93,7 +93,7 @@ for (YEAR in c(2018, 2019)) {
   zoop_length_total_list0[[paste0('length_dat_', YEAR)]] <- as.data.frame(bind_rows(wr_zoop_1, .id = 'Lake'))
   zoop_length_total_list0[[paste0('length_dat_', YEAR)]]$year <- YEAR
   zoop_length_total_list0[[paste0('length_dat_', YEAR)]] <- zoop_length_total_list0[[paste0('length_dat_', YEAR)]] %>% 
-    mutate(Lake = recode(Lake, "north_blue" = "n of blue"))
+    mutate(Lake = dplyr::recode(Lake, "north_blue" = "n of blue"))
   
 }
 
@@ -108,18 +108,19 @@ length_dat_processed <- zoop_length_total_list0 %>%
 
 #process non-length trait information
 #actions: subset and then change column names
-trait_info <- trait_info_init %>% 
-  select(Species, `Reproductive Mode`, `Body Shape`, `Feeding Type`) %>% 
+trait_info1 <- trait_info_init %>% 
+  select(Species, `Reproductive Mode`, `Body Shape`, `Trophic Group`, `Feeding Type`) %>% 
   rename(species = Species,
          reproductive_mode = `Reproductive Mode`,
          body_shape = `Body Shape`,
+         trophic_group = `Trophic Group`,
          feeding_type = `Feeding Type`)
 
 
 #trait info processing (step #3)
 #actions: remove NA rows, change taxa names, join length datframe with the
 #dataframe of other trait data, change taxa column to species column
-trait_info <- trait_info %>% 
+trait_info <- trait_info1 %>% 
   na.omit() %>% 
   mutate(taxa = case_when(species == 'B_longirostris' ~ 'b. longirostris',
                           species == 'D_mendotae' ~ 'd. mendatoe',
@@ -132,7 +133,7 @@ trait_info <- trait_info %>%
   select(!species) %>% 
   left_join(., length_dat_processed, by = 'taxa') %>% 
   rename(species = taxa)
-  #column_to_rownames(var = "taxa")
+#column_to_rownames(var = "taxa")
 
 
 #process rotifer traits
@@ -143,13 +144,15 @@ rotifer_info <- rotifer_traits %>%
   rename(species = Species,
          reproductive_mode = `Reproductive Mode`,
          body_shape = `Body Shape`,
+         trophic_group = `Trophic Group`,
          feeding_type = `Feeding Type`,
          length = `Size(mm)`) %>% 
   group_by(species) %>% 
   summarize(reproductive_mode = first(reproductive_mode),
             body_shape = first(body_shape),
+            trophic_group = first(trophic_group),
             feeding_type = first(feeding_type),
-            mean_length = mean(length)) %>% 
+            mean_length = mean(length, na.rm = TRUE)) %>% 
   mutate(species = tolower(species)) %>% 
   mutate(species = case_when(species == "colonial_conochilidae" ~ "colonial conochilidae",
                              species == "fillinia" ~ "filinia",
@@ -197,7 +200,7 @@ for (YEAR in c(2018, 2019)) {
              taxa = str_trim(tolower(str_remove(taxa_counttype, pattern = "[Tt]otal$|[Ff]$|[Mm]$|[Ff]*[ ]*w/[ ]*eggs$|[Ff]*[ ]*w/[ ]*epiphia$|immature$|\\?")))) %>% #add taxa to new column
       mutate(taxa = str_remove(taxa, '\\.$|\\?'), #remove trailing periods and question marks from taxa name
              count_type = str_remove(count_type, pattern = '\\s*w/\\s*'), #remove "w/" from count type (allowing for matching with differences in spaces)
-             count_type = recode(count_type, juvenile = 'immature', juveline = 'immature'),
+             count_type = dplyr::recode(count_type, juvenile = 'immature', juveline = 'immature'),
              count_type = if_else(is.na(count_type), 'total', count_type)) %>% #add total as count type for rows that don't yet have count type
       mutate(taxa = if_else(str_detect(string = taxa, pattern = 'd\\. men*dotae'), 'd. mendotae', taxa),
              taxa = if_else(taxa == "d. mendotae", "d. mendatoe", taxa),
@@ -239,6 +242,72 @@ for (YEAR in c(2018, 2019)) {
 
 
 
+#########################
+### COMBINING DAPHNIA ###
+#########################
+
+count_dat_processed_list_daphnia_combine <- lapply(count_dat_processed_list, function(x) {
+  x %>% 
+    mutate(taxa_update = case_when(grepl('^d\\..*', taxa)~ 'daphnia',
+                                   TRUE ~ taxa)
+    ) %>% 
+    group_by(Lake, taxa_update) %>% 
+    mutate(original_taxa_count = length(unique(taxa)),
+           total = sum(total),
+           m = sum(m),
+           f = sum(f),
+           eggs = sum(eggs),
+           epiphia = sum(epiphia),
+           immature = sum(immature),
+           year = first(year))
+})
+
+#count_dat_processed_list_daphnia_combine
+
+
+zoop_length_total_list0_daphnia_combine <- lapply(zoop_length_total_list0, function(x) {
+  x %>% 
+    mutate(taxa_update = case_when(grepl('^d\\..*', taxa)~ 'daphnia',
+                                   TRUE ~ taxa)
+    )
+}) 
+
+length_dat_processed_daphnia_combine <- zoop_length_total_list0_daphnia_combine %>%
+  bind_rows() %>% 
+  group_by(taxa_update) %>% 
+  summarise(mean_length = mean(length_mm, na.rm = TRUE), .groups = 'drop')
+
+
+trait_info_daphnia_combine <- trait_info1 %>% 
+  #na.omit() %>% 
+  mutate(taxa = case_when(species == 'B_longirostris' ~ 'b. longirostris',
+                          species == 'D_mendotae' ~ 'd. mendatoe',
+                          species == 'D_pulex' ~ 'd. middenorfiana/pulex',
+                          species == 'H_shoshone' ~ "h. shoshone",
+                          species == 'L_minutus' ~ 'l. minutus',
+                          species == 'Chydorus' ~ 'chydorus',
+                          species == 'H. gibberum' ~ 'h. gibberum',
+                          species == 'P. pediculous' ~ 'p. pediculus')) %>%
+  select(!species) %>% 
+  filter(taxa != 'd. middenorfiana/pulex') %>% 
+  mutate(taxa_update = if_else(taxa == 'd. mendatoe', 
+                               'daphnia',
+                               taxa)) %>% 
+  left_join(., length_dat_processed_daphnia_combine, by = 'taxa_update') %>% 
+  rename(species = taxa_update)
+
+
+all_taxa_trait_info_daphnia_combine <- rbind(trait_info_daphnia_combine %>% 
+                                               select(species, reproductive_mode, body_shape, trophic_group, feeding_type, mean_length), 
+                                             rotifer_info)
+#length data 
+#feeding_type: euchlanis, filinia, notholca --> "diverse"
+#traits to include: length, feeding type, 
+
+# first one to get removed --> body shape, trophic group
+
+
+
 #############################
 ### OUTPUT PROCESSED DATA ###
 #############################
@@ -246,6 +315,12 @@ for (YEAR in c(2018, 2019)) {
 saveRDS(all_taxa_trait_info, here('data', 'processed_data', 'all_taxa_trait_info_processed.rds') )
 saveRDS(count_dat_processed_list, here('data', 'processed_data', 'count_dat_processed_list.rds') )
 saveRDS(zoop_length_total_list0, here('data', 'processed_data', 'zoop_length_total_list0.rds') )
+
+
+saveRDS(all_taxa_trait_info_daphnia_combine, here('data', 'processed_data', 'all_taxa_trait_info_processed_daphnia_combine.rds') )
+
+saveRDS(count_dat_processed_list_daphnia_combine, here('data', 'processed_data', 'count_dat_processed_list_daphnia_combine.rds') )
+saveRDS(zoop_length_total_list0_daphnia_combine, here('data', 'processed_data', 'zoop_length_total_list0_daphnia_combine.rds') )
 
 
 

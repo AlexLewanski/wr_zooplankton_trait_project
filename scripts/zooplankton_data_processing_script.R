@@ -12,7 +12,11 @@
 ### PACKAGES ###
 library(here) #convenient input and output of files
 library(readxl) #reading in excel files
-library(tidyverse) #data processing functionality
+#library(tidyverse) #data processing functionality
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(tibble)
 
 ### load data ###
 #the rest of the data (length, counts) are loaded and processed together further down in the script

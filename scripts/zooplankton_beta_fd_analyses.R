@@ -23,7 +23,11 @@
 
 ### load libraries ###
 library(here)
-library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(tibble)
+#library(tidyverse)
 library(gawdis)
 library(readxl)
 #library(picante) #matrix randomization
